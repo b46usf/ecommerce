@@ -15,7 +15,10 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     apiServerBase: 'http://127.0.0.1:3001/api/v1',
-    public: { apiBase: '/api/v1' },
+    public: {
+      apiBase: '/api/v1',
+      ckeditorLicenseKey: process.env.NUXT_PUBLIC_CKEDITOR_LICENSE_KEY ?? 'GPL',
+    },
   },
   nitro: {
     devProxy: {

@@ -1,0 +1,6 @@
+-- Development only: replace both password placeholders before running in XAMPP.
+CREATE DATABASE IF NOT EXISTS marketplace_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'marketplace_app'@'localhost' IDENTIFIED BY 'REPLACE_APP_PASSWORD';
+CREATE USER IF NOT EXISTS 'marketplace_migrator'@'localhost' IDENTIFIED BY 'REPLACE_MIGRATOR_PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE ON marketplace_dev.* TO 'marketplace_app'@'localhost';
+GRANT ALL PRIVILEGES ON marketplace_dev.* TO 'marketplace_migrator'@'localhost';

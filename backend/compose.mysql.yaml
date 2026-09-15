@@ -1,0 +1,13 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: marketplace_dev
+      MYSQL_USER: marketplace_app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-time-zone=+00:00"]
+    ports: ["127.0.0.1:3307:3306"]
+    volumes: ["mysql_data:/var/lib/mysql"]
+volumes:
+  mysql_data:

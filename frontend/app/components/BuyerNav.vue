@@ -1,0 +1,1 @@
+<template><nav class="buyer-nav" aria-label="Menu akun pembeli"><NuxtLink to="/akun">Ringkasan</NuxtLink><NuxtLink to="/akun/pesanan">Pesanan</NuxtLink><NuxtLink to="/akun/rfq">Penawaran</NuxtLink><NuxtLink to="/akun/alamat">Alamat</NuxtLink><NuxtLink to="/akun/organisasi">Organisasi</NuxtLink><NuxtLink to="/akun/refund">Refund</NuxtLink></nav></template>

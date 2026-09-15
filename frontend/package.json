@@ -1,0 +1,34 @@
+{
+  "name": "marketplace-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "npm run openapi:generate && nuxt build",
+    "preview": "nuxt preview",
+    "typecheck": "npm run openapi:generate && nuxt typecheck",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "openapi:generate": "openapi-typescript ../Marketplace-API-OpenAPI-v0.1.yaml -o app/api/schema.d.ts",
+    "postinstall": "npm run openapi:generate && nuxt prepare",
+    "audit:wireframe": "node scripts/audit-wireframe.mjs",
+    "check": "npm run typecheck && npm test && npm run audit:wireframe && npm run build"
+  },
+  "dependencies": {
+    "nuxt": "4.5.2",
+    "openapi-fetch": "0.17.0",
+    "vue": "3.5.42",
+    "vue-router": "5.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.6",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0",
+    "vue-tsc": "3.3.11"
+  }
+}

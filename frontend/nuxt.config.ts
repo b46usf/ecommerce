@@ -1,9 +1,18 @@
+import tailwindcss from '@tailwindcss/vite';
+
 const backendOrigin = (process.env.NUXT_BACKEND_ORIGIN ?? 'http://127.0.0.1:3001').replace(/\/+$/, '');
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-13',
   devtools: { enabled: false },
-  css: ['~/assets/css/main.css'],
+  modules: ['@nuxt/icon'],
+  css: ['~/assets/css/tailwind.css', '~/assets/css/main.css'],
+  vite: { plugins: [tailwindcss()] },
+  icon: {
+    fallbackToApi: false,
+    serverBundle: { collections: ['lucide'] },
+    clientBundle: { scan: true },
+  },
   runtimeConfig: {
     apiServerBase: 'http://127.0.0.1:3001/api/v1',
     public: { apiBase: '/api/v1' },

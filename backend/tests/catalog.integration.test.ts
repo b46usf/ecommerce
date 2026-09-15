@@ -265,5 +265,8 @@ integration('catalog and inventory against MySQL-compatible InnoDB', () => {
     const relevance = await app.inject(`/api/v1/products?store_id=${f.storeId}&q=Notebook&sort=relevance`);
     expect(relevance.statusCode, relevance.body).toBe(200);
     expect(relevance.json().items).toHaveLength(2);
+    const relevanceWithoutKeyword = await app.inject(`/api/v1/products?store_id=${f.storeId}&sort=relevance`);
+    expect(relevanceWithoutKeyword.statusCode, relevanceWithoutKeyword.body).toBe(200);
+    expect(relevanceWithoutKeyword.json().items).toHaveLength(2);
   });
 });

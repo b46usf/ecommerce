@@ -39,7 +39,7 @@ watch(user, value => { if (value) void load(); else items.value = []; }, { immed
     </button>
     <section v-if="open" class="notification-drawer" aria-label="Daftar notifikasi">
       <header><h2><Icon name="lucide:bell-ring" class="size-5 text-brand-500" />Notifikasi</h2><button class="text-button" type="button" aria-label="Tutup notifikasi" @click="open = false"><Icon name="lucide:x" class="size-5" /></button></header>
-      <p v-if="pending" class="notification-empty"><Icon name="lucide:loader-circle" class="size-5 animate-spin" /> Memuat…</p>
+      <LoadingSkeleton v-if="pending" variant="compact" :count="5" label="Memuat notifikasi" />
       <p v-else-if="!items.length" class="notification-empty"><Icon name="lucide:inbox" class="size-8" />Belum ada notifikasi.</p>
       <ul v-else class="notification-list">
         <li v-for="item in items" :key="item.id" :class="{ unread: !item.read_at }">

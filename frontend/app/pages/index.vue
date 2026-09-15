@@ -25,7 +25,7 @@ useSeoMeta({ title: 'Niaga — Marketplace Multi-vendor', description: 'Temukan 
       <div class="hero-highlights" aria-label="Keunggulan Niaga"><span><Icon name="lucide:badge-check" />Toko terverifikasi</span><span><Icon name="lucide:shield-check" />Transaksi aman</span><span><Icon name="lucide:messages-square" />Penawaran bisnis</span></div>
     </section>
 
-    <ApiState :pending="status === 'idle' || status === 'pending'" :error="error ? displayError(error) : null" :empty="Boolean(data && !data.categories.items.length && !data.products.items.length)" empty-title="Katalog segera hadir" empty-message="Produk aktif akan tampil setelah toko menyelesaikan proses publikasi." @retry="refresh">
+    <ApiState :pending="status === 'idle' || status === 'pending'" :error="error ? displayError(error) : null" :empty="Boolean(data && !data.categories.items.length && !data.products.items.length)" skeleton="cards" :skeleton-count="8" loading-label="Memuat katalog" empty-title="Katalog segera hadir" empty-message="Produk aktif akan tampil setelah toko menyelesaikan proses publikasi." @retry="refresh">
       <section aria-labelledby="category-title">
         <div class="section-heading"><div><p class="eyebrow">Jelajahi</p><h2 id="category-title">Kategori pilihan</h2></div><NuxtLink class="inline-flex items-center gap-1" to="/cari">Lihat semua<Icon name="lucide:arrow-up-right" class="size-4" /></NuxtLink></div>
         <div class="chip-row"><NuxtLink v-for="category in data?.categories.items" :key="category.id" class="chip group" :to="{ path: '/cari', query: { category_id: category.id } }"><Icon name="lucide:tag" class="size-4 text-brand-500 transition-transform group-hover:rotate-6" />{{ category.name }}</NuxtLink></div>

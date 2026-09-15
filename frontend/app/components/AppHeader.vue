@@ -67,7 +67,7 @@ async function signOut() {
         <input id="global-search" v-model="query" autocomplete="off" placeholder="Cari produk, kebutuhan sekolah, dan lainnya">
         <button type="submit" aria-label="Cari"><Icon name="lucide:search" class="size-4" /><span class="search-label">Cari</span></button>
         <div v-if="query.trim().length >= 2" class="suggestions" role="listbox" aria-label="Saran produk">
-          <p v-if="suggestionPending" role="status"><Icon name="lucide:loader-circle" class="size-4 animate-spin" /> Mencari…</p>
+          <LoadingSkeleton v-if="suggestionPending" class="suggestions__skeleton" variant="compact" :count="3" label="Mencari produk" />
           <NuxtLink v-for="product in suggestions" v-else :key="product.id" :to="`/produk/${product.id}`" role="option" @click="suggestions = []">
             <span class="inline-flex items-center gap-2"><Icon name="lucide:package-search" class="size-4 text-brand-500" />{{ product.name }}</span>
             <small>{{ product.skus.length }} varian</small>

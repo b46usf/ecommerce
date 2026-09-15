@@ -14,7 +14,8 @@ watch(() => props.operationId, () => { if (props.operationId) void load(); }, { 
 
 <template>
   <div class="operation-status" role="status" aria-live="polite">
-    <template v-if="operation"><span class="spinner" v-if="!terminal"/><strong>{{ statusLabel(operation.state) }}</strong><small v-if="operation.error" class="error">{{ operation.error }}</small></template>
+    <LoadingSkeleton v-if="!operation && !error" variant="compact" :count="2" label="Memeriksa status proses" />
+    <template v-if="operation"><span v-if="!terminal" class="operation-pulse skeleton-block" aria-hidden="true"/><strong>{{ statusLabel(operation.state) }}</strong><small v-if="operation.error" class="error">{{ operation.error }}</small></template>
     <button v-if="error" class="text-button" type="button" @click="load">{{ displayError(error).message }} · Coba lagi</button>
   </div>
 </template>

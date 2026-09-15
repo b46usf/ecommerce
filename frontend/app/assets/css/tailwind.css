@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@source "../../**/*.{vue,ts}";
+
+@theme {
+  --color-brand-50: #eef7ff;
+  --color-brand-100: #d9edff;
+  --color-brand-500: #0878dc;
+  --color-brand-600: #0564bb;
+  --color-brand-800: #083a79;
+  --color-brand-900: #062b59;
+  --color-accent-500: #f59e0b;
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+}

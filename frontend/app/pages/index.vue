@@ -16,20 +16,22 @@ useSeoMeta({ title: 'Niaga — Marketplace Multi-vendor', description: 'Temukan 
 
 <template>
   <main id="main-content" class="page-shell">
-    <section class="hero" aria-labelledby="hero-title">
-      <p class="eyebrow">Marketplace multi-vendor Indonesia</p>
-      <h1 id="hero-title">Semua kebutuhan, dari banyak toko tepercaya.</h1>
+    <section class="hero relative isolate" aria-labelledby="hero-title">
+      <div class="hero-orbit" aria-hidden="true"><Icon name="lucide:shopping-bag" /></div>
+      <p class="eyebrow"><Icon name="lucide:sparkles" class="size-4" />Marketplace multi-vendor Indonesia</p>
+      <h1 id="hero-title" class="text-balance">Semua kebutuhan, dari banyak toko tepercaya.</h1>
       <p>Bandingkan produk, minta penawaran untuk pembelian besar, dan selesaikan transaksi dalam satu tempat.</p>
-      <div class="hero-actions"><NuxtLink class="button" to="/cari">Jelajahi produk</NuxtLink><NuxtLink class="button button--ghost" to="/register">Buat akun gratis</NuxtLink></div>
+      <div class="hero-actions"><NuxtLink class="button group" to="/cari"><Icon name="lucide:compass" class="size-5" />Jelajahi produk<Icon name="lucide:arrow-right" class="size-4 transition-transform group-hover:translate-x-1" /></NuxtLink><NuxtLink class="button button--ghost" to="/register"><Icon name="lucide:user-plus" class="size-5" />Buat akun gratis</NuxtLink></div>
+      <div class="hero-highlights" aria-label="Keunggulan Niaga"><span><Icon name="lucide:badge-check" />Toko terverifikasi</span><span><Icon name="lucide:shield-check" />Transaksi aman</span><span><Icon name="lucide:messages-square" />Penawaran bisnis</span></div>
     </section>
 
     <ApiState :pending="status === 'idle' || status === 'pending'" :error="error ? displayError(error) : null" :empty="Boolean(data && !data.categories.items.length && !data.products.items.length)" empty-title="Katalog segera hadir" empty-message="Produk aktif akan tampil setelah toko menyelesaikan proses publikasi." @retry="refresh">
       <section aria-labelledby="category-title">
-        <div class="section-heading"><div><p class="eyebrow">Jelajahi</p><h2 id="category-title">Kategori pilihan</h2></div><NuxtLink to="/cari">Lihat semua</NuxtLink></div>
-        <div class="chip-row"><NuxtLink v-for="category in data?.categories.items" :key="category.id" class="chip" :to="{ path: '/cari', query: { category_id: category.id } }">{{ category.name }}</NuxtLink></div>
+        <div class="section-heading"><div><p class="eyebrow">Jelajahi</p><h2 id="category-title">Kategori pilihan</h2></div><NuxtLink class="inline-flex items-center gap-1" to="/cari">Lihat semua<Icon name="lucide:arrow-up-right" class="size-4" /></NuxtLink></div>
+        <div class="chip-row"><NuxtLink v-for="category in data?.categories.items" :key="category.id" class="chip group" :to="{ path: '/cari', query: { category_id: category.id } }"><Icon name="lucide:tag" class="size-4 text-brand-500 transition-transform group-hover:rotate-6" />{{ category.name }}</NuxtLink></div>
       </section>
       <section class="section" aria-labelledby="latest-title">
-        <div class="section-heading"><div><p class="eyebrow">Produk terbaru</p><h2 id="latest-title">Rekomendasi untuk Anda</h2></div><NuxtLink to="/cari">Lihat katalog</NuxtLink></div>
+        <div class="section-heading"><div><p class="eyebrow">Produk terbaru</p><h2 id="latest-title">Rekomendasi untuk Anda</h2></div><NuxtLink class="inline-flex items-center gap-1" to="/cari">Lihat katalog<Icon name="lucide:arrow-up-right" class="size-4" /></NuxtLink></div>
         <div class="product-grid"><ProductCard v-for="product in data?.products.items" :key="product.id" :product="product" /></div>
       </section>
     </ApiState>

@@ -1,0 +1,61 @@
+name: Frontend integration checks
+on:
+  push:
+    paths: ['frontend/**', 'backend/**', 'Marketplace-API-OpenAPI-v0.1.yaml', '.github/workflows/frontend.yml']
+  pull_request:
+    paths: ['frontend/**', 'backend/**', 'Marketplace-API-OpenAPI-v0.1.yaml', '.github/workflows/frontend.yml']
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: marketplace_frontend_ci_test
+          MYSQL_USER: marketplace_ci
+          MYSQL_PASSWORD: ci-app-password
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -h 127.0.0.1 --silent" --health-interval=5s --health-timeout=3s --health-retries=30
+    env:
+      DATABASE_URL: mysql://marketplace_ci:ci-app-password@127.0.0.1:3306/marketplace_frontend_ci_test
+      TEST_DATABASE_URL: mysql://marketplace_ci:ci-app-password@127.0.0.1:3306/marketplace_frontend_ci_test
+      REDIS_URL: redis://127.0.0.1:6379
+      SESSION_SECRET: ci-session-key-never-used-outside-isolated-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Install and migrate backend schema
+        working-directory: backend
+        run: |
+          npm ci
+          npm run db:migrate
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+      - name: Verify generated OpenAPI types are current
+        working-directory: frontend
+        run: |
+          npm run openapi:generate
+          git diff --exit-code -- app/api/schema.d.ts
+      - name: Typecheck and unit tests
+        working-directory: frontend
+        run: |
+          npm run typecheck
+          npm test
+      - name: Browser-like Fastify integration test
+        working-directory: frontend
+        run: npm run test:integration
+      - name: Production build and dependency audit
+        working-directory: frontend
+        run: |
+          npm run build
+          npm audit --audit-level=high

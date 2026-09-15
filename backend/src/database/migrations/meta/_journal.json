@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1788686694587,
+      "tag": "0000_cloudy_wrecker",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1788686843728,
+      "tag": "0001_append_only_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1788733902495,
+      "tag": "0002_dashing_famine",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1788733976465,
+      "tag": "0003_transaction_integrity",
+      "breakpoints": true
+    }
+  ]
+}

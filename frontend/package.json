@@ -13,13 +13,14 @@
     "typecheck": "npm run openapi:generate && nuxt typecheck",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "openapi:generate": "openapi-typescript ../Marketplace-API-OpenAPI-v0.1.yaml -o app/api/schema.d.ts",
+    "openapi:generate": "openapi-typescript ../docs/Marketplace-API-OpenAPI-v0.1.yaml -o app/api/schema.d.ts",
     "demo:images": "node scripts/generate-demo-product-images.mjs",
     "postinstall": "npm run openapi:generate && nuxt prepare",
     "audit:wireframe": "node scripts/audit-wireframe.mjs",
     "check": "npm run typecheck && npm test && npm run audit:wireframe && npm run build"
   },
   "dependencies": {
+    "@nuxt/icon": "^2.5.1",
     "nuxt": "4.5.2",
     "openapi-fetch": "0.17.0",
     "vue": "3.5.42",

@@ -11,7 +11,7 @@ Butuh Node.js 22+, database XAMPP, dan Redis/Valkey. Jalankan perintah dari fold
 3. Hidupkan MySQL di XAMPP. Buat database dan dua user khusus menggunakan `scripts/bootstrap-database.sql.example` setelah mengganti placeholder password. Isi `DATABASE_URL` untuk user aplikasi dan `MIGRATION_DATABASE_URL` untuk user migrasi. Jangan gunakan root untuk runtime.
 4. `docker compose up -d` menjalankan Valkey serta Mailpit lokal. Bila Redis sudah tersedia, cukup sesuaikan `REDIS_URL`. Docker tidak wajib untuk menjalankan Node dan XAMPP.
 5. `npm run db:migrate`
-6. Isi `SEED_ADMIN_PASSWORD`, `SEED_BUYER_PASSWORD`, dan `SEED_VENDOR_PASSWORD` pada `.env` sebelum `npm run db:seed`. Seed hanya menerima `NODE_ENV=development` dan tidak mengganti password akun yang sudah ada.
+6. Isi `SEED_ADMIN_PASSWORD`, `SEED_BUYER_PASSWORD`, dan `SEED_VENDOR_PASSWORD` pada `.env` sebelum `npm run db:seed`. Seed hanya menerima `NODE_ENV=development`, tidak mengganti password akun yang sudah ada, dan menyiapkan 18 produk aktif dalam 6 kategori beserta SKU, stok, dan media demo.
 7. `npm run dev` dan, pada terminal lain, `npm run dev:worker`.
 
 API: `http://127.0.0.1:3001/api/v1`. Dokumentasi route yang telah diimplementasikan: `http://127.0.0.1:3001/docs`. Mailpit: `http://127.0.0.1:8025`. Health check: `/health/live` dan `/health/ready`. API memeriksa koneksi database dan Redis saat startup.

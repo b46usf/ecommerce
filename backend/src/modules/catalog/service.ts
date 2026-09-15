@@ -113,7 +113,10 @@ export async function listProducts(db: Db, query: SearchQuery, mediaBaseUrl: str
   if (query.min_price !== undefined && query.max_price !== undefined && query.min_price > query.max_price) {
     throw new AppError(422, 'INVALID_PRICE_RANGE', 'Minimum price must not exceed maximum price.');
   }
-  const sort = vendorStoreId ? 'newest' : query.sort ?? (keyword ? 'relevance' : 'newest');
+  const requestedSort = vendorStoreId ? 'newest' : query.sort ?? (keyword ? 'relevance' : 'newest');
+  // MariaDB interprets ORDER BY 0 as an invalid positional column. With no keyword,
+  // relevance has no score to rank, so newest is the useful deterministic fallback.
+  const sort = requestedSort === 'relevance' && !keyword ? 'newest' : requestedSort;
   const scope = cursorScope({ vendorStoreId, keyword, category: query.category_id, store: query.store_id,
     min: query.min_price, max: query.max_price, sort });
   const cursor = decodeCursor(query.cursor, scope);

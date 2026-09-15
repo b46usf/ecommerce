@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "openapi:generate": "openapi-typescript ../Marketplace-API-OpenAPI-v0.1.yaml -o app/api/schema.d.ts",
+    "demo:images": "node scripts/generate-demo-product-images.mjs",
     "postinstall": "npm run openapi:generate && nuxt prepare",
     "audit:wireframe": "node scripts/audit-wireframe.mjs",
     "check": "npm run typecheck && npm test && npm run audit:wireframe && npm run build"

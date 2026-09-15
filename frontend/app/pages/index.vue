@@ -6,7 +6,7 @@ const api = useMarketplaceApi();
 const { data, error, status, refresh } = await useAsyncData('marketplace-home', async () => {
   const [categories, products] = await Promise.all([
     api.GET('/categories', { params: { query: { limit: 12 } } }).then(unwrap),
-    api.GET('/products', { params: { query: { limit: 12, sort: 'newest' } } }).then(unwrap),
+    api.GET('/products', { params: { query: { limit: 18, sort: 'newest' } } }).then(unwrap),
   ]);
   return { categories, products };
 }, { server: false });

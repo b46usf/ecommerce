@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { createHmac } from 'node:crypto';
+import { resolve } from 'node:path';
 import { z } from 'zod';
 
 const bool = z.enum(['true', 'false']).transform(value => value === 'true');
@@ -33,6 +34,7 @@ const schema = z.object({
   S3_ENDPOINT: z.string().url().optional(), S3_REGION: z.string().default('auto'),
   S3_BUCKET: z.string().optional(), S3_ACCESS_KEY_ID: z.string().optional(), S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_PUBLIC_BASE_URL: z.string().url().default('http://localhost:3001/media'),
+  LOCAL_MEDIA_DIR: z.string().optional(),
 });
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
@@ -70,6 +72,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     smtpHost: e.SMTP_HOST, smtpPort: e.SMTP_PORT, smtpSecure: e.SMTP_SECURE, smtpUser: e.SMTP_USER, smtpPassword: e.SMTP_PASSWORD, smtpFrom: e.SMTP_FROM,
     s3Endpoint: e.S3_ENDPOINT, s3Region: e.S3_REGION, s3Bucket: e.S3_BUCKET,
     s3AccessKeyId: e.S3_ACCESS_KEY_ID, s3SecretAccessKey: e.S3_SECRET_ACCESS_KEY, mediaBaseUrl: e.S3_PUBLIC_BASE_URL,
+    localMediaDir: e.NODE_ENV === 'production' ? undefined : resolve(e.LOCAL_MEDIA_DIR ?? '../frontend/public/demo-products'),
   };
 }
 export type Config = ReturnType<typeof loadConfig>;

@@ -536,6 +536,98 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ProfileUpdate'
+  /me/avatar:
+    put:
+      tags:
+      - Auth
+      operationId: updateMyAvatar
+      summary: Unggah atau ganti foto profil
+      description: Memvalidasi dan mengubah foto menjadi WebP persegi 512 piksel sebelum diterbitkan.
+      responses:
+        '200':
+          description: Foto profil berhasil diperbarui
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '412':
+          $ref: '#/components/responses/Error412'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '428':
+          $ref: '#/components/responses/Error428'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-roles:
+      - AUTHENTICATED
+      security:
+      - SessionCookie: []
+        CsrfToken: []
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+    delete:
+      tags:
+      - Auth
+      operationId: deleteMyAvatar
+      summary: Hapus foto profil
+      responses:
+        '200':
+          description: Foto profil berhasil dihapus
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '412':
+          $ref: '#/components/responses/Error412'
+        '428':
+          $ref: '#/components/responses/Error428'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-roles:
+      - AUTHENTICATED
+      security:
+      - SessionCookie: []
+        CsrfToken: []
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+
   /me/password:
     put:
       tags:
@@ -4097,6 +4189,122 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/MediaUpload'
+  /vendor/stores/{storeId}/products/{productId}/media/{mediaId}:
+    patch:
+      tags:
+      - Vendor Catalog
+      operationId: updateProductMedia
+      summary: Perbarui teks alternatif gambar produk
+      responses:
+        '200':
+          description: Gambar produk berhasil diperbarui
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '412':
+          $ref: '#/components/responses/Error412'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '428':
+          $ref: '#/components/responses/Error428'
+        '500':
+          $ref: '#/components/responses/Error500'
+      x-roles:
+      - STORE_OWNER
+      - CATALOG
+      security:
+      - SessionCookie: []
+        CsrfToken: []
+      parameters:
+      - name: storeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: mediaId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MediaUpdate'
+    delete:
+      tags:
+      - Vendor Catalog
+      operationId: deleteProductMedia
+      summary: Hapus gambar produk
+      responses:
+        '204':
+          description: Gambar produk berhasil dihapus
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '412':
+          $ref: '#/components/responses/Error412'
+        '428':
+          $ref: '#/components/responses/Error428'
+        '500':
+          $ref: '#/components/responses/Error500'
+      x-roles:
+      - STORE_OWNER
+      - CATALOG
+      security:
+      - SessionCookie: []
+        CsrfToken: []
+      parameters:
+      - name: storeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: mediaId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+
   /vendor/stores/{storeId}/quote-requests:
     get:
       tags:
@@ -8365,6 +8573,10 @@ components:
         phone:
           type: string
           nullable: true
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
         email_verified:
           type: boolean
         admin_roles:
@@ -8378,6 +8590,7 @@ components:
       - name
       - email
       - phone
+      - avatar_url
       - email_verified
       - admin_roles
     ProfileUpdate:
@@ -9084,6 +9297,16 @@ components:
       - url
       - alt_text
       - sort_order
+    MediaUpdate:
+      type: object
+      properties:
+        alt_text:
+          type: string
+          minLength: 1
+          maxLength: 300
+      additionalProperties: false
+      required:
+      - alt_text
     StockAdjustment:
       type: object
       properties:

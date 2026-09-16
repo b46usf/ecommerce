@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase } from '../src/database/index.js';
 import { addresses, auditLogs, buyerAccounts, categories, idempotencyKeys, inventoryBalances, inventoryMovements, legalEntities,
-  products, storeMembers, stores, taxClasses, users } from '../src/database/schema.js';
+  productMedia, products, storeMembers, stores, taxClasses, users } from '../src/database/schema.js';
 import { loadConfig } from '../src/config.js';
 import type { Services } from '../src/services.js';
 import { AppError } from '../src/shared/errors.js';
@@ -13,6 +13,7 @@ import { catalogRoutes } from '../src/modules/catalog/index.js';
 import { inventoryRoutes } from '../src/modules/inventory/index.js';
 import { cartRoutes } from '../src/modules/cart/index.js';
 import { rfqRoutes } from '../src/modules/rfq/index.js';
+import { mediaRoutes } from '../src/modules/media/index.js';
 import { registerSessionHooks, requireCsrf } from '../src/modules/auth/session.js';
 import { randomToken, tokenHash } from '../src/modules/auth/tokens.js';
 
@@ -47,7 +48,7 @@ integration('catalog and inventory against MySQL-compatible InnoDB', () => {
     app.addHook('preValidation', async request => {
       if (['POST', 'PUT', 'PATCH'].includes(request.method)) requireCsrf(request);
     });
-    await app.register(async api => { await catalogRoutes(api); await inventoryRoutes(api); await cartRoutes(api); await rfqRoutes(api); }, { prefix: '/api/v1' });
+    await app.register(async api => { await catalogRoutes(api); await inventoryRoutes(api); await cartRoutes(api); await rfqRoutes(api); await mediaRoutes(api); }, { prefix: '/api/v1' });
     await app.ready();
   }, 30_000);
 
@@ -268,5 +269,29 @@ integration('catalog and inventory against MySQL-compatible InnoDB', () => {
     const relevanceWithoutKeyword = await app.inject(`/api/v1/products?store_id=${f.storeId}&sort=relevance`);
     expect(relevanceWithoutKeyword.statusCode, relevanceWithoutKeyword.body).toBe(200);
     expect(relevanceWithoutKeyword.json().items).toHaveLength(2);
+  });
+
+  it('updates and removes product image metadata with optimistic concurrency', async () => {
+    const f = await fixture();
+    const mediaId = randomUUID();
+    await database.db.insert(productMedia).values({ id: mediaId, productId: f.product.id, objectKey: 'fixtures/product.webp', altText: 'Foto lama', sortOrder: 0 });
+    const updated = await app.inject({
+      method: 'PATCH', url: `/api/v1/vendor/stores/${f.storeId}/products/${f.product.id}/media/${mediaId}`,
+      headers: { ...f.headers, 'if-match': '"0"' }, payload: { alt_text: 'Foto produk terbaru' },
+    });
+    expect(updated.statusCode, updated.body).toBe(200);
+    expect(updated.headers.etag).toBe('"1"');
+    expect(updated.json()).toMatchObject({ id: mediaId, row_version: 1, alt_text: 'Foto produk terbaru' });
+    const stale = await app.inject({
+      method: 'PATCH', url: `/api/v1/vendor/stores/${f.storeId}/products/${f.product.id}/media/${mediaId}`,
+      headers: { ...f.headers, 'if-match': '"0"' }, payload: { alt_text: 'Versi stale' },
+    });
+    expect(stale.statusCode).toBe(412);
+    const removed = await app.inject({
+      method: 'DELETE', url: `/api/v1/vendor/stores/${f.storeId}/products/${f.product.id}/media/${mediaId}`,
+      headers: { ...f.headers, 'if-match': '"1"' },
+    });
+    expect(removed.statusCode, removed.body).toBe(204);
+    expect(await database.db.select().from(productMedia).where(eq(productMedia.id, mediaId))).toHaveLength(0);
   });
 });

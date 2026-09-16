@@ -18,7 +18,7 @@ async function fixture() {
   const now = new Date();
   let user: AuthUser = {
     id: '10000000-0000-4000-8000-000000000001', emailNormalized: 'user@example.test', name: 'User',
-    passwordHash: 'encoded-password-before-reset', phone: null, status: 'ACTIVE', emailVerifiedAt: now,
+    passwordHash: 'encoded-password-before-reset', phone: null, avatarObjectKey: null, status: 'ACTIVE', emailVerifiedAt: now,
     createdAt: now, updatedAt: now, rowVersion: 0,
   };
   const redis = {

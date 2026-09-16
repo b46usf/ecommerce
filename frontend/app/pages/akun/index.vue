@@ -91,7 +91,8 @@ useSeoMeta({ title: 'Akun saya — Niaga' })
         </div>
       </div>
       <div class="buyer-profile-card">
-        <span class="buyer-profile-card__avatar" aria-hidden="true">{{ initials }}</span>
+        <img v-if="user?.avatar_url" class="buyer-profile-card__avatar buyer-profile-card__avatar--image" :src="user.avatar_url" alt="Foto profil">
+        <span v-else class="buyer-profile-card__avatar" aria-hidden="true">{{ initials }}</span>
         <div class="buyer-profile-card__identity"><strong>{{ user?.name }}</strong><span>{{ user?.email }}</span></div>
         <span class="buyer-profile-card__verified" :class="{ 'buyer-profile-card__verified--pending': !user?.email_verified }"><Icon :name="user?.email_verified ? 'lucide:badge-check' : 'lucide:circle-alert'" />{{ user?.email_verified ? 'Akun terverifikasi' : 'Verifikasi email' }}</span>
         <NuxtLink class="buyer-profile-card__edit" to="/akun/profil"><Icon name="lucide:pencil" /> Kelola profil</NuxtLink>

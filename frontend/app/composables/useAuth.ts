@@ -1,10 +1,11 @@
 import type { components } from '~/api/schema';
-import { unwrap, versionHeaders } from '~/api/client';
+import { errorFromResponse, unwrap, versionHeaders } from '~/api/client';
 
 type User = components['schemas']['User'];
 
 export function useAuth() {
   const api = useMarketplaceApi();
+  const config = useRuntimeConfig();
   const user = useState<User | null>('auth-user', () => null);
   const pending = useState('auth-pending', () => false);
 
@@ -57,6 +58,32 @@ export function useAuth() {
     } finally { pending.value = false; }
   }
 
+  async function updateAvatar(file: File): Promise<User> {
+    if (!user.value) throw new Error('Profil pengguna belum dimuat.');
+    pending.value = true;
+    try {
+      const body = new FormData(); body.append('file', file);
+      const response = await fetch(`${String(config.public.apiBase).replace(/\/$/, '')}/me/avatar`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'X-CSRF-Token': await api.refreshCsrf(), ...versionHeaders(user.value.row_version) }, body,
+      });
+      let data: unknown;
+      try { data = await response.json(); } catch { data = undefined; }
+      if (!response.ok) throw errorFromResponse(response, data);
+      user.value = data as User;
+      return user.value;
+    } finally { pending.value = false; }
+  }
+
+  async function deleteAvatar(): Promise<User> {
+    if (!user.value) throw new Error('Profil pengguna belum dimuat.');
+    pending.value = true;
+    try {
+      user.value = unwrap(await api.DELETE('/me/avatar', { params: { header: versionHeaders(user.value.row_version) } }));
+      return user.value;
+    } finally { pending.value = false; }
+  }
+
   async function logout(): Promise<void> {
     pending.value = true;
     try {
@@ -67,5 +94,5 @@ export function useAuth() {
     } finally { pending.value = false; }
   }
 
-  return { user, pending, load, login, register, updateProfile, changePassword, logout };
+  return { user, pending, load, login, register, updateProfile, updateAvatar, deleteAvatar, changePassword, logout };
 }

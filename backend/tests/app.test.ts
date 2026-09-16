@@ -40,7 +40,7 @@ describe('application integration and HTTP boundary', () => {
       expect([...implemented].filter(id => !expected.has(id)).sort()).toEqual([
         'confirmProductMediaUpload', 'createProductMediaUploadUrl', 'downloadDocumentContent',
       ]);
-      expect(expected.size).toBe(123);
+      expect(expected.size).toBe(127);
     } finally { await app.close(); }
   });
   it('enforces pre-session CSRF, trusted origin and strict bodies before business code', async () => {

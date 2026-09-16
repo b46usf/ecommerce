@@ -9,6 +9,7 @@ type Tax = components['schemas']['TaxPolicy']
 
 definePageMeta({ middleware: ['auth', 'admin'] })
 const api = useMarketplaceApi()
+const appAlert = useAppAlert()
 const fees = ref<Fee[]>([])
 const taxes = ref<Tax[]>([])
 const fee = reactive({ policy_key: '', category_id: '', commission_rate: 0.05, buyer_fee_amount: 0, valid_from: new Date().toISOString().slice(0, 16), valid_until: '' })
@@ -37,14 +38,15 @@ async function createTax() {
   catch (cause) { message.value = displayError(cause).message }
 }
 async function activate(kind: 'fee'|'tax', item: Fee|Tax) {
-  const reason = prompt('Alasan aktivasi minimal 3 karakter. Periode yang tumpang tindih akan ditolak server.')
+  const reason = await appAlert.promptText({ title: 'Aktifkan kebijakan?', text: 'Periode kebijakan yang tumpang tindih akan ditolak oleh server.', inputLabel: 'Alasan aktivasi', confirmText: 'Aktifkan kebijakan' })
   if (!reason) return
   try {
     if (kind === 'fee') unwrap(await api.POST('/admin/fee-policies/{feePolicyId}/activate', { params: { path: { feePolicyId: item.id }, header: { ...versionHeaders(item.row_version), 'Idempotency-Key': crypto.randomUUID() } }, body: { reason } }))
     else unwrap(await api.POST('/admin/tax-policies/{taxPolicyId}/activate', { params: { path: { taxPolicyId: item.id }, header: { ...versionHeaders(item.row_version), 'Idempotency-Key': crypto.randomUUID() } }, body: { reason } }))
     await load()
+    await appAlert.success({ title: 'Kebijakan diaktifkan' })
   }
-  catch (cause) { message.value = displayError(cause).message }
+  catch (cause) { message.value = displayError(cause).message; await appAlert.error({ title: 'Aktivasi gagal', text: message.value }) }
 }
 onMounted(() => { void load() })
 useSeoMeta({ title: 'Kebijakan biaya dan pajak — Niaga' })

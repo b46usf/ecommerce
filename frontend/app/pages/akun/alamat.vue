@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import type { components } from '~/api/schema'; import { displayError } from '~/utils/errors';
 type Address = components['schemas']['Address']; type AddressWrite = components['schemas']['AddressWrite'];
-definePageMeta({ middleware: 'auth' }); const addressApi = useAddresses(); const editing = ref<Address | null>(null); const showForm = ref(false); const message = ref('');
+definePageMeta({ middleware: 'auth' }); const addressApi = useAddresses(); const appAlert = useAppAlert(); const editing = ref<Address | null>(null); const showForm = ref(false); const message = ref('');
 const form = reactive<AddressWrite>({ label: '', recipient_name: '', phone: '', street: '', province: '', city: '', district: '', postal_code: '', is_default: false });
 onMounted(() => { void addressApi.load().catch(() => undefined); });
 function reset() { Object.assign(form, { label: '', recipient_name: '', phone: '', street: '', province: '', city: '', district: '', postal_code: '', area_id: undefined, latitude: undefined, longitude: undefined, is_default: false }); editing.value = null; showForm.value = false; message.value = ''; }
 function edit(address: Address) { editing.value = address; Object.assign(form, { label: address.label ?? '', recipient_name: address.recipient_name, phone: address.phone, street: address.street, province: address.province ?? '', city: address.city ?? '', district: address.district ?? '', postal_code: address.postal_code, area_id: address.area_id, latitude: address.latitude, longitude: address.longitude, is_default: address.is_default ?? false }); showForm.value = true; window.scrollTo({ top: 0, behavior: 'smooth' }); }
 async function save() { message.value = ''; if (!/^\d{5}$/.test(form.postal_code)) { message.value = 'Kode pos harus terdiri dari 5 angka.'; return; } if ((form.latitude === undefined) !== (form.longitude === undefined)) { message.value = 'Latitude dan longitude harus diisi bersama.'; return; } try { if (editing.value) await addressApi.update(editing.value, { ...form }); else await addressApi.create({ ...form }); reset(); } catch (cause) { message.value = displayError(cause).message; } }
-async function archive(address: Address) { if (!confirm(`Arsipkan alamat ${address.label ?? ''}?`)) return; try { await addressApi.archive(address); } catch (cause) { message.value = displayError(cause).message; } }
+async function archive(address: Address) { const confirmed = await appAlert.confirmAction({ title: `Arsipkan ${address.label || 'alamat ini'}?`, text: 'Alamat akan dihapus dari pilihan pengiriman berikutnya.', confirmText: 'Ya, arsipkan', danger: true }); if (!confirmed) return; try { await addressApi.archive(address); await appAlert.success({ title: 'Alamat diarsipkan' }); } catch (cause) { message.value = displayError(cause).message; await appAlert.error({ title: 'Alamat gagal diarsipkan', text: message.value }); } }
 function masked(phone: string) { return phone.length < 7 ? phone : `${phone.slice(0,3)}••••${phone.slice(-3)}`; }
 useSeoMeta({ title: 'Alamat — Niaga' });
 </script>

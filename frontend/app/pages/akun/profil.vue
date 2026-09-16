@@ -4,6 +4,7 @@ import { displayError } from '~/utils/errors'
 definePageMeta({ middleware: 'auth' })
 
 const { user, pending, updateProfile, changePassword } = useAuth()
+const appAlert = useAppAlert()
 const profile = reactive({ name: '', email: '', phone: '' })
 const password = reactive({ current: '', next: '', confirmation: '' })
 const profileMessage = ref('')
@@ -36,8 +37,10 @@ async function saveProfile() {
     profileMessage.value = previousEmail !== updated.email
       ? 'Profil diperbarui. Tautan verifikasi telah dikirim ke email baru.'
       : 'Profil berhasil diperbarui.'
+    await appAlert.success({ title: 'Profil berhasil disimpan', text: profileMessage.value })
   } catch (cause) {
     profileError.value = displayError(cause).message
+    await appAlert.error({ title: 'Profil gagal disimpan', text: profileError.value })
   }
 }
 
@@ -47,13 +50,22 @@ async function savePassword() {
     passwordError.value = password.next === password.confirmation
       ? 'Password baru minimal 12 karakter dan harus berbeda dari password saat ini.'
       : 'Konfirmasi password baru tidak sama.'
+    await appAlert.error({ title: 'Periksa password baru', text: passwordError.value })
     return
   }
+  const confirmed = await appAlert.confirmAction({
+    title: 'Perbarui password?',
+    text: 'Setelah password diperbarui, seluruh perangkat akan keluar dan Anda perlu masuk kembali.',
+    confirmText: 'Ya, perbarui password',
+  })
+  if (!confirmed) return
   try {
     await changePassword(password.current, password.next)
+    await appAlert.success({ title: 'Password berhasil diperbarui', text: 'Silakan masuk kembali menggunakan password baru.' })
     await navigateTo({ path: '/login', query: { redirect: '/akun/profil', password_updated: '1' } })
   } catch (cause) {
     passwordError.value = displayError(cause).message
+    await appAlert.error({ title: 'Password gagal diperbarui', text: passwordError.value })
   }
 }
 

@@ -9,6 +9,7 @@ type Profile = components['schemas']['TaxProfile']
 
 definePageMeta({ middleware: ['auth', 'admin'] })
 const api = useMarketplaceApi()
+const appAlert = useAppAlert()
 const entities = ref<Entity[]>([])
 const profiles = ref<Profile[]>([])
 const entityId = ref('')
@@ -38,10 +39,10 @@ async function create() {
   catch (cause) { message.value = displayError(cause).message }
 }
 async function verify(item: Profile) {
-  const reason = prompt('Alasan verifikasi minimal 3 karakter')
+  const reason = await appAlert.promptText({ title: 'Verifikasi profil pajak?', text: 'Pastikan semua dokumen dan status perpajakan telah diperiksa.', inputLabel: 'Alasan verifikasi', confirmText: 'Verifikasi profil' })
   if (!reason) return
-  try { unwrap(await api.POST('/admin/tax-profiles/{taxProfileId}/verify', { params: { path: { taxProfileId: item.id }, header: { ...versionHeaders(item.row_version), 'Idempotency-Key': crypto.randomUUID() } }, body: { reason } })); await loadProfiles() }
-  catch (cause) { message.value = displayError(cause).message }
+  try { unwrap(await api.POST('/admin/tax-profiles/{taxProfileId}/verify', { params: { path: { taxProfileId: item.id }, header: { ...versionHeaders(item.row_version), 'Idempotency-Key': crypto.randomUUID() } }, body: { reason } })); await loadProfiles(); await appAlert.success({ title: 'Profil pajak terverifikasi' }) }
+  catch (cause) { message.value = displayError(cause).message; await appAlert.error({ title: 'Verifikasi gagal', text: message.value }) }
 }
 onMounted(() => { void loadEntities() })
 useSeoMeta({ title: 'Profil pajak vendor — Niaga' })

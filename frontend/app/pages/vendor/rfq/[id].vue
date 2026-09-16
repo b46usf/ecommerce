@@ -8,6 +8,7 @@ type Quote = components['schemas']['QuoteRequest']
 
 definePageMeta({ middleware: 'auth' })
 const api = useMarketplaceApi()
+const appAlert = useAppAlert()
 const portal = usePortal()
 const route = useRoute()
 const quote = ref<Quote>()
@@ -55,7 +56,7 @@ async function offer() {
 
 async function reject() {
   if (!quote.value) return
-  const reason = prompt('Alasan penolakan minimal 3 karakter')
+  const reason = await appAlert.promptText({ title: 'Tolak permintaan penawaran?', text: 'Pembeli akan melihat bahwa toko tidak dapat memenuhi RFQ ini.', inputLabel: 'Alasan penolakan', confirmText: 'Tolak RFQ', danger: true })
   if (!reason) return
   try {
     quote.value = unwrap(await api.POST('/vendor/stores/{storeId}/quote-requests/{quoteRequestId}/reject', {
@@ -66,8 +67,9 @@ async function reject() {
       body: { reason },
     }))
     message.value = 'RFQ ditolak.'
+    await appAlert.success({ title: 'RFQ ditolak', text: 'Status permintaan penawaran telah diperbarui.' })
   }
-  catch (cause) { message.value = displayError(cause).message }
+  catch (cause) { message.value = displayError(cause).message; await appAlert.error({ title: 'RFQ gagal ditolak', text: message.value }) }
 }
 
 onMounted(() => { void load() })

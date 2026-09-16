@@ -81,7 +81,7 @@ async function signOut() {
         </NuxtLink>
         <NotificationMenu />
         <div v-if="user" class="account-menu">
-          <NuxtLink class="header-action" to="/akun"><span class="avatar">{{ user.name.slice(0, 1).toUpperCase() }}</span><span class="action-label">{{ user.name }}</span></NuxtLink>
+          <NuxtLink class="header-action" to="/akun"><img v-if="user.avatar_url" class="avatar avatar--image" :src="user.avatar_url" alt=""><span v-else class="avatar">{{ user.name.slice(0, 1).toUpperCase() }}</span><span class="action-label">{{ user.name }}</span></NuxtLink>
           <button class="header-action" type="button" :disabled="authPending" @click="signOut"><Icon name="lucide:log-out" class="size-5" /><span class="action-label">Keluar</span></button>
         </div>
         <NuxtLink v-else class="button button--header" :to="{ path: '/login', query: route.path !== '/' ? { redirect: route.fullPath } : {} }"><Icon name="lucide:log-in" class="size-4" /> Masuk</NuxtLink>

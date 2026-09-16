@@ -29,6 +29,13 @@
       "when": 1788733976465,
       "tag": "0003_transaction_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1789555593311,
+      "tag": "0004_flippant_red_skull",
+      "breakpoints": true
     }
   ]
 }

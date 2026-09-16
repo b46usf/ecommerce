@@ -2,25 +2,25 @@ import { createHash, randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type {} from '@fastify/multipart';
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { auditLogs, outboxEvents, products, productMedia, uploadIntents } from '../../database/schema.js';
 import { requireStoreRole, requireUser } from '../auth/index.js';
 import { executeIdempotent } from '../../shared/idempotency.js';
 import { AppError } from '../../shared/errors.js';
-import type { Config } from '../../config.js';
 import { routeSchema } from '../../shared/contracts.js';
 import type { DatabaseTransaction } from '../../database/index.js';
 import { scanDocument } from '../documents/security.js';
 import { maximumProductImageBytes, prepareProductImage } from './image.js';
+import { deleteMediaObject, objectStorage, publicMediaUrl, writeMediaObject } from './storage.js';
+import { assertVersion, expectedVersion } from '../catalog/policy.js';
 
-export function objectStorage(config: Config): S3Client {
-  if (!config.s3Endpoint || !config.s3Bucket || !config.s3AccessKeyId || !config.s3SecretAccessKey) throw new AppError(503, 'STORAGE_UNAVAILABLE', 'Object storage belum dikonfigurasi.');
-  return new S3Client({ endpoint: config.s3Endpoint, region: config.s3Region, forcePathStyle: true, credentials: { accessKeyId: config.s3AccessKeyId, secretAccessKey: config.s3SecretAccessKey }, maxAttempts: 2 });
-}
+export { objectStorage } from './storage.js';
+
 const params = { type: 'object', required: ['storeId', 'productId'], properties: { storeId: { type: 'string', format: 'uuid' }, productId: { type: 'string', format: 'uuid' } }, additionalProperties: false };
 const headers = { type: 'object', required: ['idempotency-key'], properties: { 'idempotency-key': { type: 'string', minLength: 16, maxLength: 128 } } };
 type Params = { storeId: string; productId: string };
+type MediaParams = Params & { mediaId: string };
 type ConfirmBody = { upload_id: string; alt_text: string; sort_order: number };
 
 function metadata(body: { alt_text: string; sort_order: number }) {
@@ -108,7 +108,7 @@ export async function mediaRoutes(app: FastifyInstance) {
     const fields = metadata({ alt_text: form.alt_text, sort_order: Number(form.sort_order) });
     const digest = createHash('sha256').update(file.bytes).digest('hex');
     request.body = { ...fields, sha256: digest, mime: file.mime } as unknown as ConfirmBody;
-    const client = objectStorage(app.services.config), uploaded = new Set<string>();
+    const uploaded = new Set<string>();
     let retainedPrefix: string | undefined;
     try {
       const result = await executeIdempotent(request, { actorId: user.id, operation: 'uploadProductMedia' }, async tx => {
@@ -119,8 +119,7 @@ export async function mediaRoutes(app: FastifyInstance) {
         const prepared = await prepareProductImage(file!.bytes, file!.mime), id = randomUUID();
         for (const variant of prepared.variants) {
           const key = `products/${product.id}/${id}/${variant.name}.webp`;
-          await client.send(new PutObjectCommand({ Bucket: app.services.config.s3Bucket, Key: key, Body: variant.bytes,
-            ContentType: 'image/webp', CacheControl: 'public,max-age=31536000,immutable' }), { abortSignal: AbortSignal.timeout(15000) });
+          await writeMediaObject(app.services.config, key, variant.bytes, 'image/webp');
           uploaded.add(key);
         }
         const objectKey = `products/${product.id}/${id}/detail.webp`;
@@ -130,16 +129,75 @@ export async function mediaRoutes(app: FastifyInstance) {
           correlationId: request.id, changesRedacted: { media_id: id, sha256: prepared.checksum } });
         const [row] = await tx.select().from(productMedia).where(eq(productMedia.id, id));
         return { statusCode: 201, body: { id, created_at: row!.createdAt.toISOString(), row_version: row!.rowVersion,
-          url: `${app.services.config.mediaBaseUrl.replace(/\/$/, '')}/${objectKey}`, alt_text: fields.altText, sort_order: fields.sortOrder }, headers: { ETag: `"${row!.rowVersion}"` } };
+          url: publicMediaUrl(app.services.config, objectKey)!, alt_text: fields.altText, sort_order: fields.sortOrder }, headers: { ETag: `"${row!.rowVersion}"` } };
       });
       retainedPrefix = `products/${request.params.productId}/${result.body.id}/`;
       return reply.code(result.statusCode).headers(result.headers ?? {}).send(result.body);
     } finally {
       for (const key of uploaded) if (!retainedPrefix || !key.startsWith(retainedPrefix)) {
-        try { await client.send(new DeleteObjectCommand({ Bucket: app.services.config.s3Bucket, Key: key }), { abortSignal: AbortSignal.timeout(5000) }); }
+        try { await deleteMediaObject(app.services.config, key); }
         catch { request.log.error({ event: 'media_orphan_cleanup_failed' }, 'Image cleanup failed'); }
       }
-      client.destroy();
     }
   });
+
+  app.patch<{ Params: MediaParams; Body: { alt_text: string }; Headers: { 'if-match': string } }>(
+    '/vendor/stores/:storeId/products/:productId/media/:mediaId',
+    { schema: routeSchema('updateProductMedia') },
+    async (request, reply) => {
+      const user = await requireStoreRole(request, request.params.storeId, ['OWNER', 'CATALOG']);
+      const altText = request.body.alt_text.trim();
+      if (!altText || altText.length > 300) throw new AppError(422, 'INVALID_MEDIA_METADATA', 'Teks alternatif wajib berisi maksimal 300 karakter.');
+      const version = expectedVersion(request.headers['if-match']);
+      const row = await app.services.db.transaction(async tx => {
+        const [product] = await tx.select().from(products).where(and(eq(products.id, request.params.productId), eq(products.storeId, request.params.storeId))).limit(1).for('update');
+        if (!product) throw new AppError(404, 'PRODUCT_NOT_FOUND', 'Produk tidak ditemukan.');
+        const [media] = await tx.select().from(productMedia).where(and(eq(productMedia.id, request.params.mediaId), eq(productMedia.productId, product.id))).limit(1).for('update');
+        if (!media) throw new AppError(404, 'MEDIA_NOT_FOUND', 'Gambar produk tidak ditemukan.');
+        assertVersion(media.rowVersion, version);
+        const updated = { ...media, altText, rowVersion: media.rowVersion + 1, updatedAt: new Date() };
+        await tx.update(productMedia).set({ altText, rowVersion: updated.rowVersion, updatedAt: updated.updatedAt }).where(eq(productMedia.id, media.id));
+        await tx.update(products).set({ rowVersion: sql`${products.rowVersion} + 1`, updatedAt: new Date() }).where(eq(products.id, product.id));
+        await tx.insert(auditLogs).values({ actorId: user.id, entityType: 'PRODUCT_MEDIA', entityId: media.id, action: 'UPDATE', correlationId: request.id,
+          changesRedacted: { product_id: product.id, before_version: media.rowVersion, after_version: updated.rowVersion } });
+        return updated;
+      });
+      reply.header('ETag', `"${row.rowVersion}"`);
+      return { id: row.id, created_at: row.createdAt.toISOString(), row_version: row.rowVersion,
+        url: publicMediaUrl(app.services.config, row.objectKey)!, alt_text: row.altText, sort_order: row.sortOrder };
+    },
+  );
+
+  app.delete<{ Params: MediaParams; Headers: { 'if-match': string } }>(
+    '/vendor/stores/:storeId/products/:productId/media/:mediaId',
+    { schema: routeSchema('deleteProductMedia') },
+    async (request, reply) => {
+      const user = await requireStoreRole(request, request.params.storeId, ['OWNER', 'CATALOG']);
+      const version = expectedVersion(request.headers['if-match']);
+      const removed = await app.services.db.transaction(async tx => {
+        const [product] = await tx.select().from(products).where(and(eq(products.id, request.params.productId), eq(products.storeId, request.params.storeId))).limit(1).for('update');
+        if (!product) throw new AppError(404, 'PRODUCT_NOT_FOUND', 'Produk tidak ditemukan.');
+        const mediaRows = await tx.select().from(productMedia).where(eq(productMedia.productId, product.id));
+        const media = mediaRows.find(item => item.id === request.params.mediaId);
+        if (!media) throw new AppError(404, 'MEDIA_NOT_FOUND', 'Gambar produk tidak ditemukan.');
+        assertVersion(media.rowVersion, version);
+        if (product.status === 'ACTIVE' && mediaRows.length === 1) {
+          throw new AppError(409, 'PRODUCT_IMAGE_REQUIRED', 'Produk aktif harus memiliki minimal satu gambar. Unggah pengganti terlebih dahulu.');
+        }
+        await tx.delete(productMedia).where(eq(productMedia.id, media.id));
+        await tx.update(products).set({ rowVersion: sql`${products.rowVersion} + 1`, updatedAt: new Date() }).where(eq(products.id, product.id));
+        await tx.insert(auditLogs).values({ actorId: user.id, entityType: 'PRODUCT_MEDIA', entityId: media.id, action: 'DELETE', correlationId: request.id,
+          changesRedacted: { product_id: product.id } });
+        return media;
+      });
+      if (removed.objectKey.startsWith(`products/${request.params.productId}/`)) {
+        const prefix = removed.objectKey.replace(/[^/]+$/, '');
+        for (const name of ['thumbnail', 'card', 'detail', 'zoom']) {
+          try { await deleteMediaObject(app.services.config, `${prefix}${name}.webp`); }
+          catch { request.log.error({ event: 'media_cleanup_failed', mediaId: removed.id }, 'Image cleanup failed'); }
+        }
+      }
+      return reply.code(204).send();
+    },
+  );
 }

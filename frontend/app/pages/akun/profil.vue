@@ -3,7 +3,7 @@ import { displayError } from '~/utils/errors'
 
 definePageMeta({ middleware: 'auth' })
 
-const { user, pending, updateProfile, changePassword } = useAuth()
+const { user, pending, updateProfile, updateAvatar, deleteAvatar, changePassword } = useAuth()
 const appAlert = useAppAlert()
 const profile = reactive({ name: '', email: '', phone: '' })
 const password = reactive({ current: '', next: '', confirmation: '' })
@@ -12,6 +12,10 @@ const profileError = ref('')
 const passwordError = ref('')
 const showCurrent = ref(false)
 const showNext = ref(false)
+const avatarInput = ref<HTMLInputElement>()
+const avatarFile = ref<File>()
+const avatarPreview = ref('')
+const avatarDragging = ref(false)
 
 const initials = computed(() => (user.value?.name || 'P').trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase())
 const passwordValid = computed(() => password.next.length >= 12
@@ -23,6 +27,54 @@ watch(user, (value) => {
   profile.email = value.email
   profile.phone = value.phone || ''
 }, { immediate: true })
+
+function clearAvatarSelection() {
+  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
+  avatarPreview.value = ''
+  avatarFile.value = undefined
+  if (avatarInput.value) avatarInput.value.value = ''
+}
+
+async function selectAvatar(file?: File) {
+  if (!file) return
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    await appAlert.error({ title: 'Format foto tidak didukung', text: 'Gunakan file JPG, PNG, atau WebP.' })
+    return
+  }
+  if (file.size > 3 * 1024 * 1024) {
+    await appAlert.error({ title: 'Ukuran foto terlalu besar', text: 'Ukuran maksimal foto profil adalah 3 MB.' })
+    return
+  }
+  clearAvatarSelection()
+  avatarFile.value = file
+  avatarPreview.value = URL.createObjectURL(file)
+}
+
+async function saveAvatar() {
+  if (!avatarFile.value) return
+  try {
+    await updateAvatar(avatarFile.value)
+    clearAvatarSelection()
+    await appAlert.success({ title: 'Foto profil diperbarui', text: 'Foto baru sudah tampil di seluruh area akun.' })
+  } catch (cause) {
+    await appAlert.error({ title: 'Foto gagal diunggah', text: displayError(cause).message })
+  }
+}
+
+async function removeAvatar() {
+  if (!user.value?.avatar_url) return
+  const confirmed = await appAlert.confirmAction({ title: 'Hapus foto profil?', text: 'Akun akan kembali memakai inisial nama.', confirmText: 'Ya, hapus foto', danger: true })
+  if (!confirmed) return
+  try {
+    await deleteAvatar()
+    clearAvatarSelection()
+    await appAlert.success({ title: 'Foto profil dihapus' })
+  } catch (cause) {
+    await appAlert.error({ title: 'Foto gagal dihapus', text: displayError(cause).message })
+  }
+}
+
+onUnmounted(clearAvatarSelection)
 
 async function saveProfile() {
   profileMessage.value = ''
@@ -82,7 +134,17 @@ useSeoMeta({ title: 'Profil akun — Niaga' })
 
     <div class="profile-settings__layout">
       <aside class="surface profile-summary-card">
-        <span class="profile-summary-card__avatar" aria-hidden="true">{{ initials }}</span>
+        <div class="profile-avatar-editor" :class="{ 'profile-avatar-editor--dragging': avatarDragging }" @dragover.prevent="avatarDragging = true" @dragleave.prevent="avatarDragging = false" @drop.prevent="avatarDragging = false; selectAvatar($event.dataTransfer?.files?.[0])">
+          <img v-if="avatarPreview || user?.avatar_url" class="profile-summary-card__avatar profile-summary-card__avatar--image" :src="avatarPreview || user?.avatar_url || ''" alt="Foto profil">
+          <span v-else class="profile-summary-card__avatar" aria-hidden="true">{{ initials }}</span>
+          <button class="profile-avatar-editor__camera" type="button" aria-label="Pilih foto profil" :disabled="pending" @click="avatarInput?.click()"><Icon name="lucide:camera" /></button>
+          <input ref="avatarInput" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" @change="selectAvatar(($event.target as HTMLInputElement).files?.[0])">
+        </div>
+        <div class="profile-avatar-actions">
+          <p>JPG, PNG, atau WebP · maksimal 3 MB</p>
+          <button v-if="avatarFile" type="button" :disabled="pending" @click="saveAvatar"><Icon :name="pending ? 'lucide:loader-circle' : 'lucide:upload'" :class="{ 'animate-spin': pending }" />{{ pending ? 'Mengunggah…' : 'Simpan foto' }}</button>
+          <button v-if="user?.avatar_url" class="text-button" type="button" :disabled="pending" @click="removeAvatar"><Icon name="lucide:trash-2" /> Hapus foto</button>
+        </div>
         <div><h2>{{ user?.name }}</h2><p>{{ user?.email }}</p></div>
         <span class="badge" :class="{ 'badge--warning': !user?.email_verified }"><Icon :name="user?.email_verified ? 'lucide:badge-check' : 'lucide:circle-alert'" />{{ user?.email_verified ? 'Email terverifikasi' : 'Email belum diverifikasi' }}</span>
         <dl>

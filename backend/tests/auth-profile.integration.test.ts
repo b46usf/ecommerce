@@ -1,8 +1,14 @@
 import { randomUUID } from 'node:crypto'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { createServer, type Server, type Socket } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import Fastify, { type FastifyInstance } from 'fastify'
 import cookie from '@fastify/cookie'
+import multipart from '@fastify/multipart'
 import { hash, verify } from 'argon2'
 import { eq } from 'drizzle-orm'
+import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createDatabase } from '../src/database/index.js'
 import { auditLogs, authTokens, users } from '../src/database/schema.js'
@@ -22,14 +28,35 @@ integration('account profile and password endpoints', () => {
   const sessions = new Map<string, string>()
   const counters = new Map<string, number>()
   let config: ReturnType<typeof loadConfig>
+  let scanner: Server
+  const scannerSockets = new Set<Socket>()
+  let mediaDirectory: string
 
   beforeAll(async () => {
     if (!databaseUrl || !new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Integration database name must end in _test.')
+    mediaDirectory = await mkdtemp(join(tmpdir(), 'marketplace-profile-media-'))
+    scanner = createServer(socket => {
+      scannerSockets.add(socket)
+      socket.once('close', () => scannerSockets.delete(socket))
+      let received = Buffer.alloc(0)
+      socket.on('data', chunk => {
+        received = Buffer.concat([received, chunk])
+        if (received.length >= 4 && received.subarray(-4).equals(Buffer.alloc(4))) socket.end('stream: OK\0')
+      })
+    })
+    await new Promise<void>((resolve, reject) => {
+      scanner.once('error', reject)
+      scanner.listen(0, '127.0.0.1', resolve)
+    })
+    const scannerAddress = scanner.address()
+    if (!scannerAddress || typeof scannerAddress === 'string') throw new Error('Fake scanner did not bind to TCP.')
     database = createDatabase({ databaseUrl })
     config = loadConfig({
       NODE_ENV: 'test', DATABASE_URL: databaseUrl, REDIS_URL: 'redis://127.0.0.1:6379',
       SESSION_SECRET: 'profile-integration-session-secret-32-characters',
       AUTH_TOKEN_SECRET: 'profile-integration-auth-token-secret-32-characters',
+      CLAMAV_HOST: '127.0.0.1', CLAMAV_PORT: String(scannerAddress.port), CLAMAV_TIMEOUT_MS: '1000',
+      LOCAL_MEDIA_DIR: mediaDirectory, S3_PUBLIC_BASE_URL: 'http://media.test',
     })
     app = Fastify({ ajv: { customOptions: { removeAdditional: false, coerceTypes: 'array' } } })
     app.decorate('services', {
@@ -50,9 +77,10 @@ integration('account profile and password endpoints', () => {
       const err = error as Error & { code?: string; cause?: { code?: string }; validation?: unknown }
       const duplicate = (err.cause?.code ?? err.code) === 'ER_DUP_ENTRY'
       const status = error instanceof AppError ? error.statusCode : err.validation ? 400 : duplicate ? 409 : 500
-      reply.code(status).send({ error: { code: error instanceof AppError ? error.code : duplicate ? 'RESOURCE_CONFLICT' : 'REQUEST_ERROR', message: error.message, request_id: request.id } })
+      reply.code(status).send({ error: { code: error instanceof AppError ? error.code : duplicate ? 'RESOURCE_CONFLICT' : 'REQUEST_ERROR', message: err.message, request_id: request.id } })
     })
     await app.register(cookie)
+    await app.register(multipart)
     registerSessionHooks(app)
     app.addHook('preValidation', async request => {
       if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) requireCsrf(request)
@@ -64,7 +92,12 @@ integration('account profile and password endpoints', () => {
   afterAll(async () => {
     if (app) await app.close()
     if (database) await database.close()
-  })
+    if (scanner) {
+      for (const socket of scannerSockets) socket.destroy()
+      await new Promise<void>(resolve => scanner.close(() => resolve()))
+    }
+    if (mediaDirectory) await rm(mediaDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+  }, 30_000)
 
   async function fixture() {
     const userId = randomUUID()
@@ -121,4 +154,47 @@ integration('account profile and password endpoints', () => {
     expect(expired.statusCode).toBe(401)
     expect(await database.db.select().from(auditLogs).where(eq(auditLogs.entityId, data.userId))).toEqual(expect.arrayContaining([expect.objectContaining({ action: 'PASSWORD_CHANGED' })]))
   }, 30_000)
+
+  it('removes a profile photo with version checks and audit history', async () => {
+    const data = await fixture()
+    const objectKey = `profiles/${data.userId}/old.webp`
+    await database.db.update(users).set({ avatarObjectKey: objectKey }).where(eq(users.id, data.userId))
+    const response = await app.inject({ method: 'DELETE', url: '/api/v1/me/avatar', headers: { ...data.headers, 'if-match': '"0"' } })
+    expect(response.statusCode, response.body).toBe(200)
+    expect(response.headers.etag).toBe('"1"')
+    expect(response.json()).toMatchObject({ avatar_url: null, row_version: 1 })
+    const [stored] = await database.db.select().from(users).where(eq(users.id, data.userId)).limit(1)
+    expect(stored?.avatarObjectKey).toBeNull()
+    expect(await database.db.select().from(auditLogs).where(eq(auditLogs.entityId, data.userId)))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ action: 'AVATAR_DELETED' })]))
+  })
+
+  it('uploads, normalizes, persists, and exposes a profile photo', async () => {
+    const data = await fixture()
+    const source = await sharp({ create: { width: 900, height: 600, channels: 3, background: '#1473e6' } }).png().toBuffer()
+    const boundary = `----marketplace-${randomUUID()}`
+    const payload = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="avatar.png"\r\nContent-Type: image/png\r\n\r\n`),
+      source,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ])
+    const response = await app.inject({
+      method: 'PUT', url: '/api/v1/me/avatar',
+      headers: { ...data.headers, 'if-match': '"0"', 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload,
+    })
+    expect(response.statusCode, response.body).toBe(200)
+    expect(response.headers.etag).toBe('"1"')
+    const body = response.json() as { avatar_url: string; row_version: number }
+    expect(body).toMatchObject({ row_version: 1 })
+    expect(body.avatar_url).toMatch(new RegExp(`^http://media\\.test/profiles/${data.userId}/[0-9a-f-]+\\.webp$`))
+
+    const [stored] = await database.db.select().from(users).where(eq(users.id, data.userId)).limit(1)
+    expect(stored?.avatarObjectKey).toMatch(new RegExp(`^profiles/${data.userId}/[0-9a-f-]+\\.webp$`))
+    const storedBytes = await readFile(join(mediaDirectory, stored!.avatarObjectKey!))
+    const metadata = await sharp(storedBytes).metadata()
+    expect(metadata).toMatchObject({ format: 'webp', width: 512, height: 512 })
+    expect(await database.db.select().from(auditLogs).where(eq(auditLogs.entityId, data.userId)))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ action: 'AVATAR_UPDATED' })]))
+  })
 })

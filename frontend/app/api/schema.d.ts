@@ -168,6 +168,27 @@ export interface paths {
         patch: operations["updateMe"];
         trace?: never;
     };
+    "/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Unggah atau ganti foto profil
+         * @description Memvalidasi dan mengubah foto menjadi WebP persegi 512 piksel sebelum diterbitkan.
+         */
+        put: operations["updateMyAvatar"];
+        post?: never;
+        /** Hapus foto profil */
+        delete: operations["deleteMyAvatar"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/password": {
         parameters: {
             query?: never;
@@ -1078,6 +1099,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/vendor/stores/{storeId}/products/{productId}/media/{mediaId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Hapus gambar produk */
+        delete: operations["deleteProductMedia"];
+        options?: never;
+        head?: never;
+        /** Perbarui teks alternatif gambar produk */
+        patch: operations["updateProductMedia"];
         trace?: never;
     };
     "/vendor/stores/{storeId}/quote-requests": {
@@ -2276,6 +2315,8 @@ export interface components {
             /** Format: email */
             email: string;
             phone: string | null;
+            /** Format: uri */
+            avatar_url: string | null;
             email_verified: boolean;
             admin_roles: string[];
         };
@@ -2556,6 +2597,9 @@ export interface components {
             alt_text: string;
             /** Format: int64 */
             sort_order: number;
+        };
+        MediaUpdate: {
+            alt_text: string;
         };
         StockAdjustment: {
             on_hand_delta: number;
@@ -4000,6 +4044,82 @@ export interface operations {
             422: components["responses"]["Error422"];
             428: components["responses"]["Error428"];
             429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+        };
+    };
+    updateMyAvatar: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description row_version saat GET terakhir, dibungkus tanda kutip.
+                 * @example "0"
+                 */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Foto profil berhasil diperbarui */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            428: components["responses"]["Error428"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+        };
+    };
+    deleteMyAvatar: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description row_version saat GET terakhir, dibungkus tanda kutip.
+                 * @example "0"
+                 */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Foto profil berhasil dihapus */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            412: components["responses"]["Error412"];
+            428: components["responses"]["Error428"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
         };
@@ -6581,6 +6701,85 @@ export interface operations {
             429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];
             503: components["responses"]["Error503"];
+        };
+    };
+    deleteProductMedia: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description row_version saat GET terakhir, dibungkus tanda kutip.
+                 * @example "0"
+                 */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                storeId: string;
+                productId: string;
+                mediaId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Gambar produk berhasil dihapus */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            428: components["responses"]["Error428"];
+            500: components["responses"]["Error500"];
+        };
+    };
+    updateProductMedia: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description row_version saat GET terakhir, dibungkus tanda kutip.
+                 * @example "0"
+                 */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                storeId: string;
+                productId: string;
+                mediaId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MediaUpdate"];
+            };
+        };
+        responses: {
+            /** @description Gambar produk berhasil diperbarui */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Media"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            428: components["responses"]["Error428"];
+            500: components["responses"]["Error500"];
         };
     };
     listVendorQuotes: {

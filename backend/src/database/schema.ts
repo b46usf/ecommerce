@@ -51,6 +51,7 @@ export const users = mysqlTable('users', {
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   name: varchar('name', { length: 150 }).notNull(),
   phone: varchar('phone', { length: 32 }),
+  avatarObjectKey: varchar('avatar_object_key', { length: 512 }),
   status: varchar('status', { length: 20 }).notNull().default('ACTIVE'),
   emailVerifiedAt: instant('email_verified_at'),
 }, (t) => [uniqueIndex('users_email_uq').on(t.emailNormalized)]);

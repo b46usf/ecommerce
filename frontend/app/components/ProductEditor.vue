@@ -10,6 +10,7 @@ type Product = components['schemas']['Product']
 type ProductWrite = components['schemas']['ProductWrite']
 type Sku = components['schemas']['Sku']
 const api = useMarketplaceApi()
+const appAlert = useAppAlert()
 const portal = usePortal()
 const product = ref<Product>()
 const categories = ref<components['schemas']['Category'][]>([])
@@ -145,6 +146,38 @@ async function publish() {
   }
 }
 
+async function updateMedia(image: components['schemas']['Media']) {
+  if (!product.value || !image.alt_text.trim()) return
+  try {
+    unwrap(await api.PATCH('/vendor/stores/{storeId}/products/{productId}/media/{mediaId}', {
+      params: { path: { storeId: portal.storeId.value, productId: product.value.id, mediaId: image.id }, header: versionHeaders(image.row_version) },
+      body: { alt_text: image.alt_text.trim() },
+    }))
+    await load()
+    await appAlert.success({ title: 'Keterangan gambar diperbarui' })
+  } catch (cause) {
+    message.value = displayError(cause).message
+    await appAlert.error({ title: 'Gambar gagal diperbarui', text: message.value })
+  }
+}
+
+async function deleteMedia(image: components['schemas']['Media']) {
+  if (!product.value) return
+  const confirmed = await appAlert.confirmAction({ title: 'Hapus gambar produk?', text: 'Gambar akan dihapus permanen dari galeri produk.', confirmText: 'Ya, hapus gambar', danger: true })
+  if (!confirmed) return
+  try {
+    const result = await api.DELETE('/vendor/stores/{storeId}/products/{productId}/media/{mediaId}', {
+      params: { path: { storeId: portal.storeId.value, productId: product.value.id, mediaId: image.id }, header: versionHeaders(image.row_version) },
+    })
+    if (result.error !== undefined) unwrap(result)
+    await load()
+    await appAlert.success({ title: 'Gambar produk dihapus' })
+  } catch (cause) {
+    message.value = displayError(cause).message
+    await appAlert.error({ title: 'Gambar gagal dihapus', text: message.value })
+  }
+}
+
 watch(() => portal.storeId.value, () => { void load() })
 onMounted(() => { void load() })
 </script>
@@ -181,7 +214,7 @@ onMounted(() => { void load() })
     </div>
 
     <template v-if="product">
-      <section class="surface section"><div class="section-heading"><h2>Gambar produk</h2><span>{{ product.images.length }}/8</span></div><div class="media-grid"><figure v-for="image in product.images" :key="image.id"><img :src="image.url" :alt="image.alt_text"><figcaption>{{ image.sort_order }} · {{ image.alt_text }}</figcaption></figure></div><ProductMediaUploader :store-id="portal.storeId.value" :product-id="product.id" :current-count="product.images.length" @uploaded="product!.images.push($event)" /></section>
+      <section class="surface section"><div class="section-heading"><h2>Gambar produk</h2><span>{{ product.images.length }}/8</span></div><div class="media-grid"><article v-for="image in product.images" :key="image.id"><img :src="image.url" :alt="image.alt_text"><div class="media-grid__editor"><label class="form-field">Teks alternatif<input v-model.trim="image.alt_text" maxlength="300" required></label><div class="form-actions"><button class="button--secondary" type="button" :disabled="!image.alt_text" @click="updateMedia(image)"><Icon name="lucide:save" /> Simpan</button><button class="text-button" type="button" @click="deleteMedia(image)"><Icon name="lucide:trash-2" /> Hapus</button></div></div></article></div><ProductMediaUploader :store-id="portal.storeId.value" :product-id="product.id" :current-count="product.images.length" @uploaded="load" /></section>
       <section class="surface section">
         <h2>SKU dan kemasan</h2>
         <div class="sku-editor-grid"><form v-for="sku in product.skus" :key="sku.id" class="sku-editor" @submit.prevent="updateSku(sku)"><label>Kode<input v-model="sku.sku_code"></label><label>Harga<input v-model.number="sku.unit_price_gross" type="number" min="1"></label><label>Berat g<input v-model.number="sku.weight_g" type="number" min="1"></label><label>P × L × T cm<div class="dimension-fields"><input v-model.number="sku.length_cm" type="number" min="0.01" step="0.01"><input v-model.number="sku.width_cm" type="number" min="0.01" step="0.01"><input v-model.number="sku.height_cm" type="number" min="0.01" step="0.01"></div></label><small>{{ variantLabel(sku.variant_attributes) }} · {{ formatRupiah(sku.unit_price_gross) }}</small><button class="button--secondary">Perbarui SKU</button></form></div>

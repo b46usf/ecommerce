@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { hash, verify, argon2id } from 'argon2';
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type {} from '@fastify/multipart';
 import { auditLogs, authTokens, buyerAccounts, organizations, outboxEvents, users } from '../../database/schema.js';
 import { routeSchema } from '../../shared/contracts.js';
 import { AppError } from '../../shared/errors.js';
@@ -9,6 +10,9 @@ import { assertVersion, expectedVersion } from '../catalog/policy.js';
 import { createEmailToken, randomToken, tokenHash, type EmailTokenPurpose } from './tokens.js';
 import { endSession, publicUser, requireUser, startSession } from './session.js';
 import { cursorScope, decodeCursor, encodeCursor } from '../catalog/policy.js';
+import { scanDocument } from '../documents/security.js';
+import { maximumAvatarImageBytes, prepareAvatarImage } from '../media/image.js';
+import { deleteMediaObject, writeMediaObject } from '../media/storage.js';
 
 type Database = FastifyInstance['services']['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -249,6 +253,72 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     request.currentUser = updated;
     reply.header('Cache-Control', 'private, no-store').header('ETag', `"${updated.rowVersion}"`);
     return publicUser(request, updated);
+  });
+
+  app.put<{ Headers: { 'if-match': string } }>('/me/avatar', {
+    schema: routeSchema('updateMyAvatar'), bodyLimit: maximumAvatarImageBytes + 16_384,
+  }, async (request, reply) => {
+    const actor = await requireUser(request);
+    if (!request.isMultipart()) throw new AppError(422, 'INVALID_AVATAR_UPLOAD', 'Kirim foto sebagai multipart/form-data.');
+    let file: { bytes: Buffer; mime: string } | undefined;
+    for await (const part of request.parts({ limits: { files: 1, fields: 0, parts: 1, fileSize: maximumAvatarImageBytes } })) {
+      if (part.type !== 'file' || part.fieldname !== 'file' || file) {
+        throw new AppError(422, 'INVALID_AVATAR_UPLOAD', 'Unggah tepat satu file foto profil.');
+      }
+      file = { bytes: await part.toBuffer(), mime: part.mimetype };
+    }
+    if (!file) throw new AppError(422, 'INVALID_AVATAR_UPLOAD', 'File foto profil wajib diisi.');
+    await scanDocument(file.bytes, app.services.config);
+    const prepared = await prepareAvatarImage(file.bytes, file.mime);
+    const objectKey = `profiles/${actor.id}/${randomUUID()}.webp`;
+    const expected = expectedVersion(request.headers['if-match']);
+    await writeMediaObject(app.services.config, objectKey, prepared.bytes, 'image/webp');
+    let result: { updated: typeof users.$inferSelect; previousKey: string | null };
+    try {
+      result = await app.services.db.transaction(async tx => {
+        const [row] = await tx.select().from(users).where(eq(users.id, actor.id)).limit(1).for('update');
+        if (!row || row.status !== 'ACTIVE') throw new AppError(401, 'AUTH_REQUIRED', 'Silakan masuk untuk melanjutkan.');
+        assertVersion(row.rowVersion, expected);
+        const rowVersion = row.rowVersion + 1;
+        await tx.update(users).set({ avatarObjectKey: objectKey, rowVersion, updatedAt: new Date() }).where(eq(users.id, row.id));
+        await tx.insert(auditLogs).values({ actorId: row.id, entityType: 'USER', entityId: row.id, action: 'AVATAR_UPDATED', correlationId: request.id,
+          changesRedacted: { checksum: prepared.checksum, before_version: row.rowVersion, after_version: rowVersion } });
+        return { updated: { ...row, avatarObjectKey: objectKey, rowVersion, updatedAt: new Date() }, previousKey: row.avatarObjectKey };
+      });
+    } catch (cause) {
+      await deleteMediaObject(app.services.config, objectKey).catch(() => undefined);
+      throw cause;
+    }
+    if (result.previousKey?.startsWith(`profiles/${actor.id}/`)) {
+      await deleteMediaObject(app.services.config, result.previousKey).catch(() => request.log.error({ event: 'avatar_cleanup_failed' }, 'Avatar cleanup failed'));
+    }
+    request.currentUser = result.updated;
+    reply.header('ETag', `"${result.updated.rowVersion}"`);
+    return publicUser(request, result.updated);
+  });
+
+  app.delete<{ Headers: { 'if-match': string } }>('/me/avatar', {
+    schema: routeSchema('deleteMyAvatar'),
+  }, async (request, reply) => {
+    const actor = await requireUser(request);
+    const expected = expectedVersion(request.headers['if-match']);
+    const result = await app.services.db.transaction(async tx => {
+      const [row] = await tx.select().from(users).where(eq(users.id, actor.id)).limit(1).for('update');
+      if (!row || row.status !== 'ACTIVE') throw new AppError(401, 'AUTH_REQUIRED', 'Silakan masuk untuk melanjutkan.');
+      assertVersion(row.rowVersion, expected);
+      if (!row.avatarObjectKey) return { updated: row, previousKey: null };
+      const rowVersion = row.rowVersion + 1;
+      await tx.update(users).set({ avatarObjectKey: null, rowVersion, updatedAt: new Date() }).where(eq(users.id, row.id));
+      await tx.insert(auditLogs).values({ actorId: row.id, entityType: 'USER', entityId: row.id, action: 'AVATAR_DELETED', correlationId: request.id,
+        changesRedacted: { before_version: row.rowVersion, after_version: rowVersion } });
+      return { updated: { ...row, avatarObjectKey: null, rowVersion, updatedAt: new Date() }, previousKey: row.avatarObjectKey };
+    });
+    if (result.previousKey?.startsWith(`profiles/${actor.id}/`)) {
+      await deleteMediaObject(app.services.config, result.previousKey).catch(() => request.log.error({ event: 'avatar_cleanup_failed' }, 'Avatar cleanup failed'));
+    }
+    request.currentUser = result.updated;
+    reply.header('ETag', `"${result.updated.rowVersion}"`);
+    return publicUser(request, result.updated);
   });
 
   app.put<{ Body: PasswordChangeBody }>('/me/password', {

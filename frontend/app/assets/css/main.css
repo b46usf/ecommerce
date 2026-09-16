@@ -584,6 +584,30 @@ tbody tr[tabindex]:hover, tbody tr[tabindex]:focus { background: var(--info); ou
 .notification-list button:hover, .notification-list .unread button { background: var(--info); }
 .notification-list small { color: var(--muted); }
 .notification-empty { padding: 25px 16px; color: var(--muted); text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* Accessible application dialogs powered by SweetAlert2. */
+.niaga-alert-container { padding: 20px; backdrop-filter: blur(5px); background: rgba(11, 35, 61, .52) !important; }
+.niaga-alert { width: min(92vw, 470px); padding: 30px 28px 25px; border: 1px solid rgba(210, 224, 239, .88); border-radius: 24px; background: #fff; box-shadow: 0 28px 80px rgba(11, 35, 61, .24); font-family: inherit; }
+.niaga-alert__icon { margin: 0 auto 18px; }
+.niaga-alert__title { padding: 0; color: var(--ink); font-size: clamp(1.35rem, 4vw, 1.7rem); font-weight: 800; line-height: 1.2; }
+.niaga-alert__content { margin: 10px 0 0 !important; padding: 0 !important; color: var(--muted) !important; font-size: .96rem !important; line-height: 1.6 !important; }
+.niaga-alert__actions { width: 100%; margin: 24px 0 0; gap: 10px; }
+.niaga-alert__confirm, .niaga-alert__cancel { min-height: 44px; margin: 0; padding: 10px 18px; border-radius: 12px; font: inherit; font-weight: 750; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
+.niaga-alert__confirm { order: 2; border: 1px solid var(--blue); color: #fff; background: var(--blue); box-shadow: 0 8px 20px rgba(11, 124, 224, .22); }
+.niaga-alert__confirm:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(11, 124, 224, .3); }
+.niaga-alert__confirm--danger { border-color: #d9363e; background: #d9363e; box-shadow: 0 8px 20px rgba(217, 54, 62, .2); }
+.niaga-alert__cancel { order: 1; border: 1px solid var(--line); color: var(--ink); background: #fff; }
+.niaga-alert__cancel:hover { background: var(--canvas); }
+.niaga-alert__confirm:focus-visible, .niaga-alert__cancel:focus-visible, .niaga-alert__input:focus { outline: 3px solid rgba(11, 124, 224, .2); outline-offset: 2px; }
+.niaga-alert__input { width: 100% !important; min-height: 112px !important; margin: 18px 0 0 !important; padding: 13px 15px !important; border: 1px solid var(--line) !important; border-radius: 14px !important; color: var(--ink) !important; background: #fff !important; box-shadow: none !important; font: inherit !important; line-height: 1.5 !important; resize: vertical; }
+.niaga-alert__validation { margin-top: 10px !important; border-radius: 10px; background: #fff1f1 !important; color: #b4232b !important; font-size: .86rem !important; }
+
+@media (max-width: 560px) {
+  .niaga-alert-container { padding: 12px; }
+  .niaga-alert { padding: 25px 18px 19px; border-radius: 20px; }
+  .niaga-alert__actions { display: grid !important; grid-template-columns: 1fr; }
+  .niaga-alert__confirm, .niaga-alert__cancel { width: 100%; }
+}
 .upload-box { display: grid; gap: 12px; padding: 16px; border: 1px dashed #9db5cd; border-radius: 10px; background: #f9fcff; }
 .upload-box input[type="file"] { max-width: 100%; }
 .upload-progress { height: 8px; overflow: hidden; border-radius: 999px; background: #dbe7f2; }

@@ -9,6 +9,7 @@ type TaxClass = components['schemas']['TaxClass']
 
 definePageMeta({ middleware: ['auth', 'admin'] })
 const api = useMarketplaceApi()
+const appAlert = useAppAlert()
 const categories = ref<Category[]>([])
 const taxClasses = ref<TaxClass[]>([])
 const editing = ref<Category>()
@@ -49,10 +50,10 @@ async function createTax() {
 }
 
 async function activate(item: TaxClass) {
-  const reason = prompt('Alasan aktivasi minimal 3 karakter')
+  const reason = await appAlert.promptText({ title: `Aktifkan ${item.name}?`, text: 'Kelas pajak akan tersedia untuk konfigurasi katalog.', inputLabel: 'Alasan aktivasi', confirmText: 'Aktifkan kelas pajak' })
   if (!reason) return
-  try { unwrap(await api.POST('/admin/tax-classes/{taxClassId}/activate', { params: { path: { taxClassId: item.id }, header: { ...versionHeaders(item.row_version), 'Idempotency-Key': crypto.randomUUID() } }, body: { reason } })); await load() }
-  catch (cause) { message.value = displayError(cause).message }
+  try { unwrap(await api.POST('/admin/tax-classes/{taxClassId}/activate', { params: { path: { taxClassId: item.id }, header: { ...versionHeaders(item.row_version), 'Idempotency-Key': crypto.randomUUID() } }, body: { reason } })); await load(); await appAlert.success({ title: 'Kelas pajak diaktifkan' }) }
+  catch (cause) { message.value = displayError(cause).message; await appAlert.error({ title: 'Aktivasi gagal', text: message.value }) }
 }
 
 onMounted(() => { void load() })

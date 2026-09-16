@@ -10,6 +10,7 @@ type Document = components['schemas']['Document']
 
 definePageMeta({ middleware: ['auth', 'admin'] })
 const api = useMarketplaceApi()
+const appAlert = useAppAlert()
 const stores = ref<Store[]>([])
 const entities = ref<Entity[]>([])
 const document = ref<Document>()
@@ -48,10 +49,10 @@ async function decide(decision: 'APPROVE' | 'REJECT') {
 }
 
 async function suspend(store: Store) {
-  const explanation = prompt('Alasan penangguhan minimal 3 karakter')
+  const explanation = await appAlert.promptText({ title: `Tangguhkan ${store.name}?`, text: 'Toko tidak dapat berjualan selama status penangguhan aktif.', inputLabel: 'Alasan penangguhan', confirmText: 'Tangguhkan toko', danger: true })
   if (!explanation) return
-  try { unwrap(await api.POST('/admin/stores/{storeId}/suspend', { params: { path: { storeId: store.id }, header: { ...versionHeaders(store.row_version), 'Idempotency-Key': crypto.randomUUID() } }, body: { reason: explanation } })); await load() }
-  catch (cause) { message.value = displayError(cause).message }
+  try { unwrap(await api.POST('/admin/stores/{storeId}/suspend', { params: { path: { storeId: store.id }, header: { ...versionHeaders(store.row_version), 'Idempotency-Key': crypto.randomUUID() } }, body: { reason: explanation } })); await load(); await appAlert.success({ title: 'Toko ditangguhkan' }) }
+  catch (cause) { message.value = displayError(cause).message; await appAlert.error({ title: 'Penangguhan gagal', text: message.value }) }
 }
 
 async function loadDocument() {

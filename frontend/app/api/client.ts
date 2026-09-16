@@ -2,7 +2,7 @@ import createClient, { type Middleware } from 'openapi-fetch';
 import type { paths } from './schema';
 
 const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const sessionRotatingPaths = new Set(['/auth/login', '/auth/logout', '/auth/reset-password']);
+const sessionRotatingPaths = new Set(['/auth/login', '/auth/logout', '/auth/reset-password', '/me/password']);
 const analyticsEvents: Record<string, string> = {
   'GET /products': 'search_submitted', 'GET /products/{productId}': 'product_viewed',
   'POST /buyer-accounts/{buyerAccountId}/cart/items': 'add_to_cart',

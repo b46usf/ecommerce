@@ -7,6 +7,7 @@ const password = ref('')
 const showPassword = ref(false)
 const message = ref('')
 const requestId = ref<string>()
+const passwordUpdated = computed(() => route.query.password_updated === '1')
 const { login, pending } = useAuth()
 
 function safeDestination(): string {
@@ -41,6 +42,8 @@ useSeoMeta({ title: 'Masuk — Niaga' })
         </div>
         <p class="muted">Masuk untuk melanjutkan belanja dan mengelola transaksi.</p>
       </div>
+
+      <p v-if="passwordUpdated" class="form-feedback form-feedback--success" role="status"><Icon name="lucide:circle-check-big" /><span>Password berhasil diperbarui. Silakan masuk kembali dengan password baru.</span></p>
 
       <label class="form-field">
         <span class="field-label"><Icon name="lucide:mail" /> Email</span>

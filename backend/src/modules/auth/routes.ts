@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { hash, verify, argon2id } from 'argon2';
-import { and, asc, eq, gt, isNull } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { authTokens, buyerAccounts, organizations, outboxEvents, users } from '../../database/schema.js';
+import { auditLogs, authTokens, buyerAccounts, organizations, outboxEvents, users } from '../../database/schema.js';
 import { routeSchema } from '../../shared/contracts.js';
 import { AppError } from '../../shared/errors.js';
+import { assertVersion, expectedVersion } from '../catalog/policy.js';
 import { createEmailToken, randomToken, tokenHash, type EmailTokenPurpose } from './tokens.js';
 import { endSession, publicUser, requireUser, startSession } from './session.js';
 import { cursorScope, decodeCursor, encodeCursor } from '../catalog/policy.js';
@@ -13,6 +14,9 @@ type Database = FastifyInstance['services']['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 const passwordOptions = { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
 const limited = { rateLimit: { max: 10, timeWindow: '15 minutes' } };
+
+type ProfileUpdateBody = { name?: string; email?: string; phone?: string | null };
+type PasswordChangeBody = { current_password: string; new_password: string };
 
 // Unknown accounts still perform a full Argon2 verification to reduce enumeration by timing.
 let dummyHash: Promise<string> | undefined;
@@ -25,6 +29,25 @@ function normalizeEmail(email: string): string {
   const value = email.trim().toLowerCase();
   if (value.length > 254) throw new AppError(422, 'VALIDATION_ERROR', 'Alamat email terlalu panjang.');
   return value;
+}
+
+function normalizePhone(phone: string | null | undefined): string | null | undefined {
+  if (phone === undefined || phone === null) return phone;
+  const value = phone.trim();
+  const digits = value.replace(/\D/g, '');
+  if (!value || !/^\+?[-0-9 .()]+$/.test(value) || digits.length < 7 || digits.length > 15) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Nomor telepon harus berisi 7 sampai 15 digit yang valid.');
+  }
+  return value;
+}
+
+function duplicateEntry(error: unknown): boolean {
+  let cause = error;
+  for (let depth = 0; depth < 4 && cause && typeof cause === 'object'; depth++) {
+    if ('code' in cause && cause.code === 'ER_DUP_ENTRY') return true;
+    cause = 'cause' in cause ? cause.cause : undefined;
+  }
+  return false;
 }
 
 /** Redis counter is atomic and bounded even for attacker-controlled email input. */
@@ -95,13 +118,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         await queueEmailToken(tx, app, id, 'VERIFY_EMAIL');
       });
     } catch (error) {
-      let cause: unknown = error;
-      for (let depth = 0; depth < 4 && cause && typeof cause === 'object'; depth++) {
-        if ('code' in cause && cause.code === 'ER_DUP_ENTRY') {
-          throw new AppError(409, 'EMAIL_EXISTS', 'Alamat email sudah terdaftar.');
-        }
-        cause = 'cause' in cause ? cause.cause : undefined;
-      }
+      if (duplicateEntry(error)) throw new AppError(409, 'EMAIL_EXISTS', 'Alamat email sudah terdaftar.');
       throw error;
     }
     return reply.code(201).send({ message: 'Akun berhasil dibuat. Email verifikasi telah dijadwalkan.' });
@@ -180,6 +197,92 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.get('/me', { schema: routeSchema('getMe') }, async (request, reply) => {
     reply.header('Cache-Control', 'private, no-store');
     return publicUser(request, await requireUser(request));
+  });
+
+  app.patch<{ Body: ProfileUpdateBody; Headers: { 'if-match': string } }>('/me', {
+    schema: routeSchema('updateMe'),
+  }, async (request, reply) => {
+    const actor = await requireUser(request);
+    const name = request.body.name === undefined ? undefined : request.body.name.trim();
+    if (name !== undefined && !name) throw new AppError(422, 'VALIDATION_ERROR', 'Nama tidak boleh kosong.');
+    const email = request.body.email === undefined ? undefined : normalizeEmail(request.body.email);
+    const phone = normalizePhone(request.body.phone);
+    const expected = expectedVersion(request.headers['if-match']);
+    let updated: typeof users.$inferSelect;
+    try {
+      updated = await app.services.db.transaction(async (tx) => {
+        const [row] = await tx.select().from(users).where(eq(users.id, actor.id)).limit(1).for('update');
+        if (!row || row.status !== 'ACTIVE') throw new AppError(401, 'AUTH_REQUIRED', 'Silakan masuk untuk melanjutkan.');
+        assertVersion(row.rowVersion, expected);
+        const emailChanged = email !== undefined && email !== row.emailNormalized;
+        const changes = {
+          ...(name !== undefined && name !== row.name ? { name } : {}),
+          ...(emailChanged ? { emailNormalized: email, emailVerifiedAt: null } : {}),
+          ...(phone !== undefined && phone !== row.phone ? { phone } : {}),
+        };
+        const changedFields = [
+          ...(changes.name !== undefined ? ['name'] : []),
+          ...(changes.emailNormalized !== undefined ? ['email'] : []),
+          ...(Object.prototype.hasOwnProperty.call(changes, 'phone') ? ['phone'] : []),
+        ];
+        if (!changedFields.length) return row;
+        const rowVersion = row.rowVersion + 1;
+        await tx.update(users).set({ ...changes, rowVersion }).where(eq(users.id, row.id));
+        if (emailChanged) {
+          await tx.update(authTokens).set({ revokedAt: new Date(), rowVersion: sql`${authTokens.rowVersion} + 1` }).where(and(
+            eq(authTokens.userId, row.id), eq(authTokens.purpose, 'VERIFY_EMAIL'),
+            isNull(authTokens.consumedAt), isNull(authTokens.revokedAt),
+          ));
+          await queueEmailToken(tx, app, row.id, 'VERIFY_EMAIL');
+        }
+        await tx.insert(auditLogs).values({
+          actorId: row.id, entityType: 'USER', entityId: row.id, action: 'PROFILE_UPDATED',
+          changesRedacted: { fields: changedFields, email_verification_reset: emailChanged, before_version: row.rowVersion, after_version: rowVersion },
+          correlationId: request.id,
+        });
+        return { ...row, ...changes, rowVersion };
+      });
+    } catch (cause) {
+      if (duplicateEntry(cause)) throw new AppError(409, 'EMAIL_EXISTS', 'Alamat email sudah digunakan akun lain.');
+      throw cause;
+    }
+    request.currentUser = updated;
+    reply.header('Cache-Control', 'private, no-store').header('ETag', `"${updated.rowVersion}"`);
+    return publicUser(request, updated);
+  });
+
+  app.put<{ Body: PasswordChangeBody }>('/me/password', {
+    schema: routeSchema('updateMyPassword'), config: limited,
+  }, async (request, reply) => {
+    const actor = await requireUser(request);
+    if (!await accountRateLimit(request, actor.emailNormalized, 'change-password', 5)) {
+      throw new AppError(429, 'RATE_LIMITED', 'Terlalu banyak percobaan perubahan password. Coba kembali nanti.');
+    }
+    if (!await verify(actor.passwordHash, request.body.current_password)) {
+      throw new AppError(422, 'CURRENT_PASSWORD_INVALID', 'Password saat ini tidak sesuai.');
+    }
+    if (request.body.current_password === request.body.new_password) {
+      throw new AppError(422, 'PASSWORD_UNCHANGED', 'Password baru harus berbeda dari password saat ini.');
+    }
+    const passwordHash = await hash(request.body.new_password, passwordOptions);
+    await app.services.db.transaction(async (tx) => {
+      const [row] = await tx.select().from(users).where(eq(users.id, actor.id)).limit(1).for('update');
+      if (!row || row.status !== 'ACTIVE' || row.passwordHash !== actor.passwordHash) {
+        throw new AppError(409, 'ACCOUNT_CHANGED', 'Data keamanan akun telah berubah. Silakan masuk kembali.');
+      }
+      await tx.update(users).set({ passwordHash, rowVersion: row.rowVersion + 1 }).where(eq(users.id, row.id));
+      await tx.update(authTokens).set({ revokedAt: new Date(), rowVersion: sql`${authTokens.rowVersion} + 1` }).where(and(
+        eq(authTokens.userId, row.id), eq(authTokens.purpose, 'RESET_PASSWORD'),
+        isNull(authTokens.consumedAt), isNull(authTokens.revokedAt),
+      ));
+      await tx.insert(auditLogs).values({
+        actorId: row.id, entityType: 'USER', entityId: row.id, action: 'PASSWORD_CHANGED',
+        changesRedacted: { sessions_invalidated: true, before_version: row.rowVersion, after_version: row.rowVersion + 1 },
+        correlationId: request.id,
+      });
+    });
+    await endSession(request, reply);
+    return reply.code(204).send();
   });
 
   app.get<{ Querystring: { cursor?: string; limit?: number } }>('/me/buyer-accounts', {

@@ -144,7 +144,7 @@ export async function requireAdminRole(request: FastifyRequest, roles: readonly 
 
 export async function publicUser(request: FastifyRequest, user: AuthUser) {
   return {
-    id: user.id, name: user.name, email: user.emailNormalized,
+    id: user.id, row_version: user.rowVersion, name: user.name, email: user.emailNormalized, phone: user.phone,
     email_verified: user.emailVerifiedAt !== null,
     admin_roles: await getAdminRoles(request, user.id),
   };

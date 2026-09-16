@@ -161,6 +161,30 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * Perbarui profil akun
+         * @description Memperbarui nama, email, dan telepon. Perubahan email mewajibkan verifikasi ulang.
+         */
+        patch: operations["updateMe"];
+        trace?: never;
+    };
+    "/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Ubah password akun
+         * @description Memvalidasi password saat ini, memperbarui password, dan mengakhiri seluruh sesi lama.
+         */
+        put: operations["updateMyPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -2246,11 +2270,26 @@ export interface components {
         User: {
             /** Format: uuid */
             id: string;
+            /** Format: int64 */
+            row_version: number;
             name: string;
             /** Format: email */
             email: string;
+            phone: string | null;
             email_verified: boolean;
             admin_roles: string[];
+        };
+        ProfileUpdate: {
+            name?: string;
+            /** Format: email */
+            email?: string;
+            phone?: string | null;
+        };
+        PasswordChange: {
+            /** Format: password */
+            current_password: string;
+            /** Format: password */
+            new_password: string;
         };
         /**
          * @example {
@@ -3910,6 +3949,84 @@ export interface operations {
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
+            422: components["responses"]["Error422"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description row_version saat GET terakhir, dibungkus tanda kutip.
+                 * @example "0"
+                 */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Profil berhasil diperbarui */
+            200: {
+                headers: {
+                    /** @description Correlation ID */
+                    "X-Request-ID"?: string;
+                    /**
+                     * @description row_version dalam tanda kutip
+                     * @example "1"
+                     */
+                    ETag?: string;
+                    /** @example no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            428: components["responses"]["Error428"];
+            429: components["responses"]["Error429"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
+        };
+    };
+    updateMyPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChange"];
+            };
+        };
+        responses: {
+            /** @description Password berhasil diperbarui; autentikasi ulang diperlukan */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
             422: components["responses"]["Error422"];
             429: components["responses"]["Error429"];
             500: components["responses"]["Error500"];

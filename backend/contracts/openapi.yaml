@@ -476,6 +476,101 @@ paths:
       - AUTHENTICATED
       security:
       - SessionCookie: []
+    patch:
+      tags:
+      - Auth
+      operationId: updateMe
+      summary: Perbarui profil akun
+      description: Memperbarui nama, email, dan telepon. Perubahan email mewajibkan verifikasi ulang.
+      responses:
+        '200':
+          description: Profil berhasil diperbarui
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+              description: Correlation ID
+            ETag:
+              schema:
+                type: string
+              description: row_version dalam tanda kutip
+              example: '"1"'
+            Cache-Control:
+              schema:
+                type: string
+              example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '412':
+          $ref: '#/components/responses/Error412'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '428':
+          $ref: '#/components/responses/Error428'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-roles:
+      - AUTHENTICATED
+      security:
+      - SessionCookie: []
+        CsrfToken: []
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdate'
+  /me/password:
+    put:
+      tags:
+      - Auth
+      operationId: updateMyPassword
+      summary: Ubah password akun
+      description: Memvalidasi password saat ini, memperbarui password, dan mengakhiri seluruh sesi lama.
+      responses:
+        '204':
+          description: Password berhasil diperbarui; autentikasi ulang diperlukan
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+      x-roles:
+      - AUTHENTICATED
+      security:
+      - SessionCookie: []
+        CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
   /me/buyer-accounts:
     get:
       tags:
@@ -8258,11 +8353,18 @@ components:
         id:
           type: string
           format: uuid
+        row_version:
+          type: integer
+          format: int64
+          minimum: 0
         name:
           type: string
         email:
           type: string
           format: email
+        phone:
+          type: string
+          nullable: true
         email_verified:
           type: boolean
         admin_roles:
@@ -8272,10 +8374,48 @@ components:
       additionalProperties: false
       required:
       - id
+      - row_version
       - name
       - email
+      - phone
       - email_verified
       - admin_roles
+    ProfileUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          nullable: true
+          minLength: 7
+          maxLength: 32
+          pattern: '^\+?[0-9 .()\-]{7,32}$'
+      additionalProperties: false
+    PasswordChange:
+      type: object
+      properties:
+        current_password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 128
+        new_password:
+          type: string
+          format: password
+          minLength: 12
+          maxLength: 128
+      additionalProperties: false
+      required:
+      - current_password
+      - new_password
     Login:
       type: object
       properties:

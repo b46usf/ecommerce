@@ -1,5 +1,5 @@
 import type { components } from '~/api/schema';
-import { unwrap } from '~/api/client';
+import { unwrap, versionHeaders } from '~/api/client';
 
 type User = components['schemas']['User'];
 
@@ -33,6 +33,30 @@ export function useAuth() {
     finally { pending.value = false; }
   }
 
+  async function updateProfile(body: components['schemas']['ProfileUpdate']): Promise<User> {
+    if (!user.value) throw new Error('Profil pengguna belum dimuat.');
+    pending.value = true;
+    try {
+      const updated = unwrap(await api.PATCH('/me', {
+        params: { header: versionHeaders(user.value.row_version) }, body,
+      }));
+      user.value = updated;
+      return updated;
+    } finally { pending.value = false; }
+  }
+
+  async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    pending.value = true;
+    try {
+      const result = await api.PUT('/me/password', { body: {
+        current_password: currentPassword, new_password: newPassword,
+      } });
+      if (result.error !== undefined) unwrap(result);
+      user.value = null;
+      api.clearCsrf();
+    } finally { pending.value = false; }
+  }
+
   async function logout(): Promise<void> {
     pending.value = true;
     try {
@@ -43,5 +67,5 @@ export function useAuth() {
     } finally { pending.value = false; }
   }
 
-  return { user, pending, load, login, register, logout };
+  return { user, pending, load, login, register, updateProfile, changePassword, logout };
 }

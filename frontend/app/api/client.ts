@@ -1,5 +1,6 @@
 import createClient, { type Middleware } from 'openapi-fetch';
 import type { paths } from './schema';
+import type { OfflineTransport } from './offline';
 
 const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const sessionRotatingPaths = new Set(['/auth/login', '/auth/logout', '/auth/reset-password', '/me/password']);
@@ -25,6 +26,7 @@ export interface MarketplaceApiOptions {
   baseUrl: string;
   fetch?: typeof globalThis.fetch;
   createIdempotencyKey?: () => string;
+  offline?: OfflineTransport;
 }
 
 export class MarketplaceApiError extends Error {
@@ -104,7 +106,8 @@ export async function signMutationRequest(request: Request, csrfToken: string, t
 
 export function createMarketplaceApi(options: MarketplaceApiOptions) {
   const baseUrl = options.baseUrl.replace(/\/$/, '');
-  const fetcher = options.fetch ?? globalThis.fetch;
+  const rawFetcher = options.fetch ?? globalThis.fetch;
+  const fetcher = options.offline?.fetch ?? rawFetcher;
   const createIdempotencyKey = options.createIdempotencyKey ?? (() => crypto.randomUUID());
   let csrfToken: string | undefined;
   let csrfRequest: Promise<string> | undefined;
@@ -156,6 +159,20 @@ export function createMarketplaceApi(options: MarketplaceApiOptions) {
   return Object.assign(client, {
     refreshCsrf,
     clearCsrf: () => { csrfToken = undefined; },
+    offlineStatus: () => options.offline?.status(),
+    syncOffline: async () => {
+      if (!options.offline) return undefined;
+      csrfToken = undefined;
+      return options.offline.sync(async queued => {
+        const headers = new Headers(queued.headers);
+        const token = await refreshCsrf(true);
+        headers.set('X-CSRF-Token', token);
+        if (!headers.has('Idempotency-Key')) headers.set('Idempotency-Key', createIdempotencyKey());
+        const request = new Request(queued.url, { method: queued.method, credentials: 'include', headers, body: queued.body });
+        await signMutationRequest(request, token);
+        return rawFetcher(request);
+      });
+    },
   });
 }
 

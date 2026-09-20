@@ -13,6 +13,12 @@ Tahap 1 dan 2 wireframe telah menerapkan app shell responsif, autentikasi, katal
 
 Browser memanggil `/api/v1` pada origin Nuxt. Development proxy meneruskan request ke Fastify dengan `Origin` browser tetap dipertahankan, sehingga cookie HttpOnly dan pemeriksaan CSRF bekerja seperti deployment same-origin. Pada production, reverse proxy/CDN harus meneruskan `/api/v1` ke backend.
 
+## Mode offline lokal
+
+Client API otomatis memakai `localStorage` dengan key `niaga:offline:v1` ketika backend tidak dapat dijangkau atau mengembalikan error 5xx. Respons GET katalog publik yang pernah berhasil diprioritaskan sebagai cache terakhir. Bila cache belum ada, seed lokal menyediakan 6 kategori, 18 produk, toko demo, akun pembeli demo, keranjang, dan alamat. Banner di bagian atas halaman menunjukkan sumber data serta jumlah perubahan yang menunggu sinkronisasi.
+
+Perubahan profil, keranjang, dan alamat berbasis JSON dapat dikerjakan secara lokal dan masuk antrean. Ketika backend pulih, frontend mengambil CSRF baru, membuat ulang HMAC request, mempertahankan `Idempotency-Key`, lalu mengirim antrean secara berurutan. Konflik autentikasi atau versi tetap berada di antrean agar tidak menimpa data server. Upload file, checkout, pembayaran, refund, dan operasi finansial tidak dijalankan offline.
+
 Jalankan `npm run check` untuk membangkitkan ulang tipe OpenAPI, memeriksa TypeScript, menjalankan unit test client, dan membangun output Nuxt production. Alur pembeli tahap 2 tersedia pada `/akun/keranjang`, `/akun/checkout`, `/akun/alamat`, `/akun/rfq`, `/akun/pesanan`, `/akun/pembayaran/{id}`, `/akun/pengiriman/{id}`, `/akun/kasus/{id}`, dan `/akun/refund`.
 
 Smoke test HTTP browser-like tersedia melalui `npm run test:integration`. Isi `TEST_DATABASE_URL` dengan database terisolasi berakhiran `_test` yang sudah dimigrasikan. Tes menjalankan Fastify pada port acak dan memeriksa register, rotasi cookie saat login, `/me`, pembaruan CSRF, serta logout.

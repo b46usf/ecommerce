@@ -1,15 +1,47 @@
 <script setup lang="ts">
+import { offlineStatusEvent, type OfflineStatus } from '~/api/offline';
+
+const api = useMarketplaceApi();
 const { load } = useAuth();
 const online = ref(true);
-function markOnline() { online.value = true; }
+const backendAvailable = ref(true);
+const offlineSource = ref<'network' | 'cache' | 'seed'>('network');
+const pendingMutations = ref(0);
+const syncing = ref(false);
+let syncTimer: ReturnType<typeof setInterval> | undefined;
+
+function applyOfflineStatus(status?: OfflineStatus) {
+  if (!status) return;
+  backendAvailable.value = status.backendAvailable;
+  offlineSource.value = status.source;
+  pendingMutations.value = status.pendingMutations;
+}
+function handleOfflineStatus(event: Event) { applyOfflineStatus((event as CustomEvent<OfflineStatus>).detail); }
+async function syncNow() {
+  if (!navigator.onLine || syncing.value) return;
+  syncing.value = true;
+  try {
+    await api.GET('/categories', { params: { query: { limit: 1 } }, cache: 'no-store' });
+    applyOfflineStatus(await api.syncOffline());
+  } catch { applyOfflineStatus(api.offlineStatus()); }
+  finally { syncing.value = false; }
+}
+function markOnline() { online.value = true; void syncNow(); }
 function markOffline() { online.value = false; }
 onMounted(() => {
   online.value = navigator.onLine;
+  applyOfflineStatus(api.offlineStatus());
   void load().catch(() => undefined);
+  window.addEventListener(offlineStatusEvent, handleOfflineStatus);
   window.addEventListener('online', markOnline);
   window.addEventListener('offline', markOffline);
+  syncTimer = setInterval(() => {
+    if (pendingMutations.value || !backendAvailable.value) void syncNow();
+  }, 30_000);
 });
 onUnmounted(() => {
+  clearInterval(syncTimer);
+  window.removeEventListener(offlineStatusEvent, handleOfflineStatus);
   window.removeEventListener('online', markOnline);
   window.removeEventListener('offline', markOffline);
 });
@@ -18,7 +50,14 @@ onUnmounted(() => {
 <template>
   <div class="app-root">
     <a class="skip-link" href="#main-content">Lewati ke konten utama</a>
-    <p v-if="!online" class="offline-banner" role="status"><Icon name="lucide:wifi-off" class="size-4" />Anda sedang offline. Perubahan akan tersedia kembali setelah koneksi pulih.</p>
+    <div v-if="!online || !backendAvailable" class="offline-banner" role="status">
+      <Icon name="lucide:cloud-off" class="size-4" />
+      <span>
+        Backend tidak tersedia. Menampilkan data {{ offlineSource === 'cache' ? 'terakhir yang tersimpan' : 'demo offline' }} dari perangkat ini.
+        <strong v-if="pendingMutations"> {{ pendingMutations }} perubahan menunggu sinkronisasi.</strong>
+      </span>
+      <button type="button" :disabled="!online || syncing" @click="syncNow"><Icon :name="syncing ? 'lucide:loader-circle' : 'lucide:refresh-cw'" :class="{ 'animate-spin': syncing }" />{{ syncing ? 'Menyinkronkan' : 'Coba sambungkan' }}</button>
+    </div>
     <AppHeader />
     <NuxtPage />
     <footer class="site-footer">

@@ -25,6 +25,9 @@ h2 { font-size: clamp(1.45rem, 3vw, 2rem); line-height: 1.2; }
 .skip-link { position: fixed; z-index: 100; top: 8px; left: 8px; transform: translateY(-150%); padding: 10px 16px; background: white; color: var(--navy); border-radius: 6px; }
 .skip-link:focus { transform: translateY(0); }
 .offline-banner { margin: 0; padding: 9px 20px; color: #4d3100; background: #fff2cc; text-align: center; font-weight: 650; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.offline-banner button { min-height: 32px; padding: 5px 10px; border: 1px solid #8a5a00; border-radius: 999px; color: #4d3100; background: rgba(255,255,255,.72); font-size: .8rem; white-space: nowrap; }
+.offline-banner button:hover:not(:disabled) { background: white; }
+@media (max-width: 640px) { .offline-banner { align-items: flex-start; flex-wrap: wrap; padding-inline: 12px; font-size: .82rem; } }
 .site-header { position: sticky; z-index: 50; top: 0; color: white; background: var(--navy); box-shadow: 0 2px 12px rgba(2, 28, 60, .2); }
 .header-main { min-height: 72px; display: flex; align-items: center; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 8px; color: white; text-decoration: none; font-size: 1.35rem; font-weight: 850; white-space: nowrap; }

@@ -40,7 +40,7 @@ integration('account profile and password endpoints', () => {
       socket.once('close', () => scannerSockets.delete(socket))
       let received = Buffer.alloc(0)
       socket.on('data', chunk => {
-        received = Buffer.concat([received, chunk])
+        received = Buffer.concat([received, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)])
         if (received.length >= 4 && received.subarray(-4).equals(Buffer.alloc(4))) socket.end('stream: OK\0')
       })
     })

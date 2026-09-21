@@ -27,7 +27,7 @@
     "openapi-fetch": "0.17.0",
     "sanitize-html": "^2.17.7",
     "sweetalert2": "^11.26.25",
-    "vue": "3.5.42",
+    "vue": "3.5.43",
     "vue-router": "5.3.1"
   },
   "devDependencies": {

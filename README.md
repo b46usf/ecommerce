@@ -33,6 +33,8 @@ Konfigurasi yang harus selaras:
 
 Reverse proxy harus mempertahankan `Origin`, `X-Forwarded-Proto`, `X-Request-ID`, `Set-Cookie`, `X-CSRF-Token`, `X-Request-Timestamp`, `X-Request-Nonce`, `X-Request-Signature`, `Idempotency-Key`, dan `If-Match`. Endpoint provider `/api/v1/webhooks/midtrans` dan `/api/v1/webhooks/biteship` diteruskan langsung ke API.
 
+Panduan Vercel, container backend, dan GitHub Pages tersedia di [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ## Verifikasi
 
 ```powershell

@@ -47,7 +47,7 @@
     "sanitize-html": "^2.17.7",
     "sharp": "^0.35.4",
     "yaml": "^2.9.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.5"
   },
   "overrides": {
     "@esbuild-kit/core-utils": {

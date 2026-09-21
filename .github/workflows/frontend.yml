@@ -28,7 +28,7 @@ jobs:
       REDIS_URL: redis://127.0.0.1:6379
       SESSION_SECRET: ci-session-key-never-used-outside-isolated-ci
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-node@v4

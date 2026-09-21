@@ -34,7 +34,7 @@ jobs:
           npm ci
           npm run openapi:generate
           npx nuxt build --preset github_pages
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: frontend/.output/public
 

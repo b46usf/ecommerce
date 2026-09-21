@@ -1,32 +1,43 @@
 <script setup lang="ts">
 import type { components } from '~/api/schema';
 import { unwrap, versionHeaders } from '~/api/client';
+import { displayError } from '~/utils/errors';
 import { formatDate } from '~/utils/format';
 
 const api = useMarketplaceApi();
 const { user } = useAuth();
 const open = ref(false);
 const pending = ref(false);
+const errorMessage = ref('');
 const items = useState<components['schemas']['Notification'][]>('notifications', () => []);
 const unread = computed(() => items.value.filter(item => !item.read_at).length);
 
 async function load() {
   if (!user.value) return;
   pending.value = true;
+  errorMessage.value = '';
   try {
     items.value = unwrap(await api.GET('/me/notifications', { params: { query: { limit: 30 } }, cache: 'no-store' })).items;
+  } catch (cause) {
+    items.value = [];
+    errorMessage.value = displayError(cause).message;
   } finally { pending.value = false; }
 }
 
 async function markRead(item: components['schemas']['Notification']) {
-  if (!item.read_at) {
-    const value = unwrap(await api.POST('/me/notifications/{notificationId}/read', {
-      params: { path: { notificationId: item.id }, header: { ...versionHeaders(item.row_version), 'Idempotency-Key': crypto.randomUUID() } },
-    }));
-    items.value = items.value.map(row => row.id === item.id ? value : row);
+  errorMessage.value = '';
+  try {
+    if (!item.read_at) {
+      const value = unwrap(await api.POST('/me/notifications/{notificationId}/read', {
+        params: { path: { notificationId: item.id }, header: { ...versionHeaders(item.row_version), 'Idempotency-Key': crypto.randomUUID() } },
+      }));
+      items.value = items.value.map(row => row.id === item.id ? value : row);
+    }
+    if (item.resource_id) await navigateTo(`/operasi/${item.resource_id}`);
+    open.value = false;
+  } catch (cause) {
+    errorMessage.value = displayError(cause).message;
   }
-  if (item.resource_id) await navigateTo(`/operasi/${item.resource_id}`);
-  open.value = false;
 }
 
 watch(user, value => { if (value) void load(); else items.value = []; }, { immediate: true });
@@ -40,6 +51,11 @@ watch(user, value => { if (value) void load(); else items.value = []; }, { immed
     <section v-if="open" class="notification-drawer" aria-label="Daftar notifikasi">
       <header><h2><Icon name="lucide:bell-ring" class="size-5 text-brand-500" />Notifikasi</h2><button class="text-button" type="button" aria-label="Tutup notifikasi" @click="open = false"><Icon name="lucide:x" class="size-5" /></button></header>
       <LoadingSkeleton v-if="pending" variant="compact" :count="5" label="Memuat notifikasi" />
+      <div v-else-if="errorMessage" class="notification-empty" role="alert">
+        <Icon name="lucide:circle-alert" class="size-8" />
+        <span>{{ errorMessage }}</span>
+        <button class="text-button" type="button" @click="load">Coba lagi</button>
+      </div>
       <p v-else-if="!items.length" class="notification-empty"><Icon name="lucide:inbox" class="size-8" />Belum ada notifikasi.</p>
       <ul v-else class="notification-list">
         <li v-for="item in items" :key="item.id" :class="{ unread: !item.read_at }">

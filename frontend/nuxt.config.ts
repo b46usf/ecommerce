@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-13',
   devtools: { enabled: false },
+  features: { devLogs: 'silent' },
   modules: ['@nuxt/icon'],
   css: ['sweetalert2/dist/sweetalert2.min.css', '~/assets/css/tailwind.css', '~/assets/css/main.css'],
   vite: { plugins: [tailwindcss()] },

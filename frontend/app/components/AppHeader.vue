@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { components } from '~/api/schema';
 import { unwrap } from '~/api/client';
+import { displayError } from '~/utils/errors';
 
 const api = useMarketplaceApi();
+const appAlert = useAppAlert();
 const route = useRoute();
 const { user, pending: authPending, logout } = useAuth();
 const { itemCount, load: loadCart, clear: clearCart } = useCart();
@@ -45,9 +47,13 @@ async function submitSearch() {
 }
 
 async function signOut() {
-  await logout();
-  clearCart();
-  await navigateTo('/');
+  try {
+    await logout();
+    clearCart();
+    await navigateTo('/');
+  } catch (cause) {
+    await appAlert.error({ title: 'Belum dapat keluar', text: displayError(cause).message });
+  }
 }
 </script>
 

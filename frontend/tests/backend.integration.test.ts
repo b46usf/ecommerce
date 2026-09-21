@@ -4,7 +4,7 @@ import { buildApp } from '../../backend/src/app';
 import { loadConfig } from '../../backend/src/config';
 import { createDatabase } from '../../backend/src/database/index';
 import type { Services } from '../../backend/src/services';
-import { createMarketplaceApi, unwrap } from '../app/api/client';
+import { createMarketplaceApi, unwrap, versionHeaders } from '../app/api/client';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -77,6 +77,39 @@ describe.skipIf(!databaseUrl)('Nuxt API client against the Fastify HTTP boundary
 
     const me = unwrap(await api.GET('/me', { cache: 'no-store' }));
     expect(me.id).toBe(login.id);
+
+    const updatedProfile = unwrap(await api.PATCH('/me', {
+      params: { header: versionHeaders(me.row_version) },
+      body: { name: 'Frontend Buyer Updated', phone: '081234567890' },
+    }));
+    expect(updatedProfile).toMatchObject({ name: 'Frontend Buyer Updated', phone: '081234567890', row_version: me.row_version + 1 });
+
+    const accounts = unwrap(await api.GET('/me/buyer-accounts', { params: { query: { limit: 100 } }, cache: 'no-store' }));
+    const buyerAccountId = accounts.items[0]!.id;
+    const addressBody = { label: 'Rumah', recipient_name: 'Frontend Buyer', phone: '081234567890', street: 'Jalan Integrasi 1',
+      province: 'DKI Jakarta', city: 'Jakarta', district: 'Menteng', postal_code: '10310', is_default: true };
+    const address = unwrap(await api.POST('/buyer-accounts/{buyerAccountId}/addresses', {
+      params: { path: { buyerAccountId }, header: { 'Idempotency-Key': randomUUID() } }, body: addressBody,
+    }));
+    expect(address).toMatchObject({ label: 'Rumah', row_version: 0 });
+
+    const updatedAddress = unwrap(await api.PUT('/buyer-accounts/{buyerAccountId}/addresses/{addressId}', {
+      params: { path: { buyerAccountId, addressId: address.id }, header: versionHeaders(address.row_version) },
+      body: { ...addressBody, label: 'Kantor' },
+    }));
+    expect(updatedAddress).toMatchObject({ id: address.id, label: 'Kantor', row_version: 1 });
+    expect(unwrap(await api.GET('/buyer-accounts/{buyerAccountId}/addresses', {
+      params: { path: { buyerAccountId }, query: { limit: 100 } }, cache: 'no-store',
+    })).items.some(item => item.id === address.id)).toBe(true);
+
+    const removedAddress = await api.DELETE('/buyer-accounts/{buyerAccountId}/addresses/{addressId}', {
+      params: { path: { buyerAccountId, addressId: address.id }, header: versionHeaders(updatedAddress.row_version) },
+    });
+    expect(removedAddress.response.status).toBe(204);
+    expect(removedAddress.error).toBeUndefined();
+    expect(unwrap(await api.GET('/buyer-accounts/{buyerAccountId}/addresses', {
+      params: { path: { buyerAccountId }, query: { limit: 100 } }, cache: 'no-store',
+    })).items.some(item => item.id === address.id)).toBe(false);
 
     const logout = await api.POST('/auth/logout');
     expect(logout.response.status).toBe(204);

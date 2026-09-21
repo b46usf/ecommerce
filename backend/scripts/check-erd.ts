@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { getTableConfig } from 'drizzle-orm/mysql-core';
 import * as schema from '../src/database/schema.js';
 
-const erd = readFileSync(fileURLToPath(new URL('../../ERD-Struktur-Tabel-Marketplace-v0.1.md', import.meta.url)), 'utf8');
+const erd = readFileSync(fileURLToPath(new URL('../../docs/ERD-Struktur-Tabel-Marketplace-v0.1.md', import.meta.url)), 'utf8');
 const tables = new Map(Object.values(schema).map(table => {
   const config = getTableConfig(table);
   return [config.name, new Set(config.columns.map(column => column.name))] as const;

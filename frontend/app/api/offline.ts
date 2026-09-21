@@ -172,7 +172,7 @@ function isCacheable(path: string) {
 
 function isQueueable(path: string, contentType: string) {
   return !contentType.startsWith('multipart/form-data') && (
-    path === '/me' || /^\/buyer-accounts\/[^/]+\/cart\/items(?:\/[^/]+)?$/.test(path)
+    path === '/me' || path === '/auth/logout' || /^\/buyer-accounts\/[^/]+\/cart\/items(?:\/[^/]+)?$/.test(path)
     || /^\/buyer-accounts\/[^/]+\/addresses(?:\/[^/]+)?$/.test(path)
   );
 }
@@ -245,6 +245,7 @@ export function createOfflineTransport(options: OfflineTransportOptions): Offlin
     if (method === 'GET') {
       if (path === '/auth/csrf') return response({ csrf_token: 'offline-local-csrf-token-2026' });
       if (path === '/me') return response(state.user);
+      if (path === '/me/notifications') return response({ items: [], next_cursor: null });
       if (path === '/me/buyer-accounts') return response({ items: [state.buyerAccount], next_cursor: null });
       if (path === '/categories') return response({ items: state.categories, next_cursor: null });
       if (path === '/products') return response(listProducts(url));
@@ -263,6 +264,7 @@ export function createOfflineTransport(options: OfflineTransportOptions): Offlin
 
     let body: Record<string, unknown> = {};
     try { body = await request.clone().json() as Record<string, unknown>; } catch { /* body is optional */ }
+    if (method === 'POST' && path === '/auth/logout') return response(undefined, 204);
     if (method === 'PATCH' && path === '/me') {
       state.user = { ...state.user, ...body, row_version: state.user.row_version + 1 } as User;
       persist(); return response(state.user);

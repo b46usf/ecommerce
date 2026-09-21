@@ -58,6 +58,76 @@ describe('offline marketplace transport', () => {
     expect(offline.status()).toMatchObject({ backendAvailable: false, source: 'seed' });
   });
 
+  it('returns an empty notification list without an unhandled offline error', async () => {
+    const fetcher = vi.fn(async () => { throw new TypeError('backend unavailable'); }) as typeof fetch;
+    const offline = createOfflineTransport({ fetch: fetcher, storage: new MemoryStorage(), isOnline: () => true });
+    const api = createMarketplaceApi({ baseUrl: 'http://shop.test/api/v1', fetch: fetcher, offline });
+
+    const notifications = unwrap(await api.GET('/me/notifications', { params: { query: { limit: 30 } } }));
+
+    expect(notifications).toEqual({ items: [], next_cursor: null });
+    expect(offline.status()).toMatchObject({ backendAvailable: false, source: 'seed' });
+  });
+
+  it('logs out locally and queues the server logout while offline', async () => {
+    const fetcher = vi.fn(async () => { throw new TypeError('backend unavailable'); }) as typeof fetch;
+    const offline = createOfflineTransport({ fetch: fetcher, storage: new MemoryStorage(), isOnline: () => true });
+    const api = createMarketplaceApi({ baseUrl: 'http://shop.test/api/v1', fetch: fetcher, offline });
+
+    const result = await api.POST('/auth/logout');
+
+    expect(result.response.status).toBe(204);
+    expect(result.error).toBeUndefined();
+    expect(offline.status()).toMatchObject({ backendAvailable: false, source: 'seed', pendingMutations: 1 });
+  });
+
+  it('supports offline profile, cart, and address CRUD with versioned queued mutations', async () => {
+    const fetcher = vi.fn(async () => { throw new TypeError('backend unavailable'); }) as typeof fetch;
+    const offline = createOfflineTransport({ fetch: fetcher, storage: new MemoryStorage(), isOnline: () => false });
+    const api = createMarketplaceApi({ baseUrl: 'http://shop.test/api/v1', fetch: fetcher, offline });
+    const accountId = '10000000-0000-4000-8000-000000000005';
+    const skuId = '40000000-0000-4000-8000-000000000002';
+
+    const profile = unwrap(await api.PATCH('/me', {
+      params: { header: { 'If-Match': '"0"' } }, body: { name: 'Pembeli Offline Diperbarui', phone: '081234567890' },
+    }));
+    expect(profile).toMatchObject({ name: 'Pembeli Offline Diperbarui', phone: '081234567890', row_version: 1 });
+
+    const added = unwrap(await api.POST('/buyer-accounts/{buyerAccountId}/cart/items', {
+      params: { path: { buyerAccountId: accountId }, header: { 'If-Match': '"0"', 'Idempotency-Key': crypto.randomUUID() } },
+      body: { sku_id: skuId, quantity: 2 },
+    }));
+    const itemId = added.items[0]!.id;
+    const updated = unwrap(await api.PATCH('/buyer-accounts/{buyerAccountId}/cart/items/{cartItemId}', {
+      params: { path: { buyerAccountId: accountId, cartItemId: itemId }, header: { 'If-Match': '"1"' } },
+      body: { quantity: 4 },
+    }));
+    expect(updated.items[0]).toMatchObject({ id: itemId, quantity: 4 });
+    const emptied = unwrap(await api.DELETE('/buyer-accounts/{buyerAccountId}/cart/items/{cartItemId}', {
+      params: { path: { buyerAccountId: accountId, cartItemId: itemId }, header: { 'If-Match': '"2"' } },
+    }));
+    expect(emptied.items).toEqual([]);
+
+    const addressBody = { label: 'Rumah', recipient_name: 'Pembeli Offline', phone: '081234567890',
+      street: 'Jalan Niaga 1', province: 'DKI Jakarta', city: 'Jakarta', district: 'Menteng', postal_code: '10310', is_default: true };
+    const address = unwrap(await api.POST('/buyer-accounts/{buyerAccountId}/addresses', {
+      params: { path: { buyerAccountId: accountId }, header: { 'Idempotency-Key': crypto.randomUUID() } }, body: addressBody,
+    }));
+    const changedAddress = unwrap(await api.PUT('/buyer-accounts/{buyerAccountId}/addresses/{addressId}', {
+      params: { path: { buyerAccountId: accountId, addressId: address.id }, header: { 'If-Match': '"0"' } },
+      body: { ...addressBody, label: 'Kantor' },
+    }));
+    expect(changedAddress).toMatchObject({ id: address.id, label: 'Kantor', row_version: 1 });
+    const removedAddress = await api.DELETE('/buyer-accounts/{buyerAccountId}/addresses/{addressId}', {
+      params: { path: { buyerAccountId: accountId, addressId: address.id }, header: { 'If-Match': '"1"' } },
+    });
+    expect(removedAddress.response.status).toBe(204);
+    expect(unwrap(await api.GET('/buyer-accounts/{buyerAccountId}/addresses', {
+      params: { path: { buyerAccountId: accountId }, query: { limit: 100 } },
+    })).items).toEqual([]);
+    expect(offline.status()).toMatchObject({ backendAvailable: false, source: 'seed', pendingMutations: 7 });
+  });
+
   it('stores an offline cart mutation and re-signs it when the backend returns', async () => {
     let backendAvailable = false;
     const requests: Request[] = [];

@@ -1,0 +1,30 @@
+# Dependencies and generated output
+**/node_modules/
+**/dist/
+**/.nuxt/
+**/.output/
+**/coverage/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+
+# Runtime data and logs
+.local/
+*.log
+*.pid
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

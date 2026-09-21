@@ -9,6 +9,7 @@ export default defineNuxtPlugin(() => {
     fetch: fetcher as typeof globalThis.fetch,
     storage: globalThis.localStorage,
     notify: browserOfflineNotifier,
+    isOnline: () => config.public.offlineDemo !== true && globalThis.navigator.onLine,
   }) : undefined;
   const api = createMarketplaceApi({ baseUrl, fetch: fetcher as typeof globalThis.fetch, offline });
   return { provide: { api } };

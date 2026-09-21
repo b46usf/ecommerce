@@ -1,7 +1,5 @@
 import tailwindcss from '@tailwindcss/vite';
 
-const backendOrigin = (process.env.NUXT_BACKEND_ORIGIN ?? 'http://127.0.0.1:3001').replace(/\/+$/, '');
-
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-13',
   devtools: { enabled: false },
@@ -18,15 +16,7 @@ export default defineNuxtConfig({
     public: {
       apiBase: '/api/v1',
       ckeditorLicenseKey: process.env.NUXT_PUBLIC_CKEDITOR_LICENSE_KEY ?? 'GPL',
-    },
-  },
-  nitro: {
-    devProxy: {
-      '/api/v1': {
-        // Nitro removes the matched proxy prefix, so restore it on the upstream target.
-        target: `${backendOrigin}/api/v1`,
-        changeOrigin: false,
-      },
+      offlineDemo: process.env.NUXT_PUBLIC_OFFLINE_DEMO === 'true',
     },
   },
   routeRules: {
